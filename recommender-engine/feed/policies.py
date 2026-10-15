@@ -6,7 +6,7 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from feed.data import load_scaler, standardize_matrix
+from feed.data import DENSE, load_scaler, standardize_matrix
 from feed.model import build_model, load_meta, predict_probs, score_from_probs
 
 
@@ -18,7 +18,8 @@ class TasteScorer:
         self.meta = load_meta()
         self.scaler = load_scaler()
         self.model = build_model(self.meta, policy)
-        ckpt = torch.load(str(policy["_models_dir"] / "taste.pt"), map_location="cpu",
+        self.ckpt_name = policy.get("_taste_ckpt", "taste.pt")
+        ckpt = torch.load(str(policy["_models_dir"] / self.ckpt_name), map_location="cpu",
                           weights_only=False)
         self.model.load_state_dict(ckpt["state_dict"])
         self.model.eval()
@@ -42,8 +43,10 @@ def build_pool(world, fs, bots_idx: np.ndarray, ts: np.ndarray, rng: np.random.G
     score = fs.item_popularity()
     top = np.argpartition(-(score + rng.normal(0, 1e-9, n_items)), pop - 1)[:pop]
     parts = [np.tile(top.astype(np.int32), (n_sess, 1))]
-    p = world.bots.taste[bots_idx].astype(np.float64)
-    cs = np.cumsum(p, axis=1)
+    prior = float(rc.get("affinity_prior", 2.0))
+    obs = fs.uc_n[bots_idx].astype(np.float64) + prior * c.cat_share
+    obs /= np.maximum(obs.sum(axis=1, keepdims=True), 1e-9)
+    cs = np.cumsum(obs, axis=1)
     cats = np.empty((n_sess, n_aff), np.int64)
     for j in range(n_aff):
         cats[:, j] = np.clip((rng.random(n_sess)[:, None] > cs).sum(axis=1), 0, c.n_cats - 1)
@@ -85,12 +88,26 @@ def rank_scores(name: str, world, fs, bots_idx: np.ndarray, pool: np.ndarray, ts
         return scorer.score(x, cat).reshape(n_sess, P)
     if name == "oracle":
         c = world.cfg["response"]
-        cat = world.catalog.cat[its]
-        match = world.bots.taste[bs, cat].astype(np.float64)
-        q = world.catalog.q[its].astype(np.float64)
+        match, q = world.appeal(bs, its)
         return (float(c["a_match"]) * (match - float(c["match_ref"]))
                 + float(c["b_quality"]) * (q - 0.5)).reshape(n_sess, P)
     raise ValueError(f"unknown policy {name}")
+
+
+def taste_with_prior(world, fs, bots_idx: np.ndarray, pool: np.ndarray, ts: np.ndarray,
+                     scorer: TasteScorer) -> tuple[np.ndarray, np.ndarray]:
+    """Taste scores for a pool plus each user's prior exposure count (feature `ui_prior_n`).
+
+    One `pair_features` pass yields both, so the composer's seen-penalty is free.
+    """
+    n_sess, P = pool.shape
+    its = pool.reshape(-1).astype(np.int64)
+    bs = np.repeat(bots_idx.astype(np.int64), P)
+    tsf = np.repeat(np.asarray(ts, dtype=np.float64), P)
+    x, cat = fs.pair_features(bs, its, tsf)
+    scores = scorer.score(x, cat).reshape(n_sess, P)
+    prior = x[:, DENSE.index("ui_prior_n")].astype(np.float32).reshape(n_sess, P)
+    return scores, prior
 
 
 def order_from_scores(scores: np.ndarray, cap: int) -> np.ndarray:

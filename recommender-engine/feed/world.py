@@ -14,6 +14,8 @@ import numpy as np
 import pandas as pd
 import yaml
 
+from feed.content import item_idiosyncrasy, preference_blocks
+
 ROOT = Path(__file__).resolve().parent.parent
 ART = ROOT / "artifacts"
 SWARM_PATH = ROOT / "config" / "swarm.yaml"
@@ -55,6 +57,7 @@ class Catalog:
     item_id: np.ndarray
     cat: np.ndarray
     q: np.ndarray
+    idio: np.ndarray
     duration: np.ndarray
     init_n: np.ndarray
     init_sum_score: np.ndarray
@@ -65,6 +68,7 @@ class Catalog:
     pop_count: np.ndarray
     cat_start: np.ndarray = field(default=None)
     cat_items: np.ndarray = field(default=None)
+    cat_share: np.ndarray = field(default=None)
     _raw: pd.DataFrame = field(default=None, repr=False)
 
     def reindex_cats(self) -> None:
@@ -72,6 +76,7 @@ class Catalog:
         self.cat_items = order
         counts = np.bincount(self.cat, minlength=self.n_cats)
         self.cat_start = np.r_[0, np.cumsum(counts)].astype(np.int64)
+        self.cat_share = (counts / max(counts.sum(), 1)).astype(np.float64)
 
     def daily_replace(self, frac: float, day: int, rng: np.random.Generator) -> np.ndarray:
         """Swap `frac` of the catalog for fresh zero-stat items (cold-start pressure)."""
@@ -82,6 +87,7 @@ class Catalog:
         self.cat[idx] = raw["cat_id"].to_numpy(np.int8)[pick]
         base = np.clip(raw["mean_score"].to_numpy(np.float64)[pick] / self._q_scale, 0, 1)
         self.q[idx] = np.clip(base + rng.normal(0, self._q_noise, k), self._q_floor, 1.0)
+        self.idio[idx] = item_idiosyncrasy(k, self.idio.shape[1], rng)
         self.duration[idx] = raw["duration_ms"].to_numpy(np.float32)[pick]
         self.item_id[idx] = -(day * 1_000_000 + np.arange(k) + 1)
         for arr in (self.init_n, self.init_sum_score, self.init_sum_pos,
@@ -105,6 +111,7 @@ def build_catalog(cfg: dict, seed: int, init_stats: bool = True) -> Catalog:
     n = items["n"].to_numpy(np.float64)[idx]
     base = np.clip(items["mean_score"].to_numpy(np.float64)[idx] / float(ccfg["q_scale"]), 0, 1)
     q = np.clip(base + rng.normal(0, float(ccfg["q_noise"]), len(idx)), float(ccfg["q_floor"]), 1.0)
+    idio = item_idiosyncrasy(len(idx), int(ccfg["idio_dim"]), rng)
     if init_stats:
         init_n, init_ss = n, items["mean_score"].to_numpy(np.float64)[idx] * n
         init_sp = items["pos_rate"].to_numpy(np.float64)[idx] * n
@@ -120,7 +127,7 @@ def build_catalog(cfg: dict, seed: int, init_stats: bool = True) -> Catalog:
     cat_obj = Catalog(
         n_items=len(idx), n_cats=N_CATS,
         item_id=items["item_id"].to_numpy(np.int32)[idx], cat=cat, q=q.astype(np.float32),
-        duration=items["duration_ms"].to_numpy(np.float32)[idx],
+        idio=idio, duration=items["duration_ms"].to_numpy(np.float32)[idx],
         init_n=init_n, init_sum_score=init_ss, init_sum_pos=init_sp,
         init_sum_play=init_splay, init_n_play=init_nplay,
         pop_sum=pop_sum, pop_count=pop_count)
@@ -148,6 +155,8 @@ class Bots:
     hour: np.ndarray
     patience: np.ndarray
     return_u: np.ndarray
+    pref_cat: np.ndarray = field(default=None)
+    pref_idio: np.ndarray = field(default=None)
 
 
 def build_bots(cfg: dict, seed: int, n_bots: int | None = None,
@@ -210,8 +219,26 @@ class World:
     def rng(self, *key: int) -> np.random.Generator:
         return np.random.default_rng(np.random.SeedSequence([self.seed, *key]))
 
+    def appeal(self, bots_idx: np.ndarray, items: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Hidden user-conditional match and global quality for (bot, item) pairs.
+
+        `match` = the bot's standardised category affinity for the item's category plus a small
+        within-category latent term, so it is mean-zero per bot and `match_ref = 0` is neutral.
+        """
+        c = self.catalog
+        cat_match = self.bots.pref_cat[bots_idx, c.cat[items]]
+        idio = np.einsum("nk,nk->n", self.bots.pref_idio[bots_idx].astype(np.float64),
+                         c.idio[items].astype(np.float64))
+        gain = float(self.cfg["catalog"]["idio_gain"])
+        scale = float(self.cfg["catalog"]["match_scale"])
+        return scale * (cat_match.astype(np.float64) + gain * idio), c.q[items].astype(np.float64)
+
 
 def build_world(cfg: dict, seed: int, n_bots: int | None = None, n_days: int | None = None,
                 init_stats: bool = True) -> World:
-    return World(build_catalog(cfg, seed, init_stats), build_bots(cfg, seed, n_bots, n_days),
-                 cfg, seed)
+    catalog = build_catalog(cfg, seed, init_stats)
+    bots = build_bots(cfg, seed, n_bots, n_days)
+    rng = np.random.default_rng(np.random.SeedSequence([seed, 14]))
+    bots.pref_cat, bots.pref_idio = preference_blocks(
+        bots.taste.astype(np.float64), int(cfg["catalog"]["idio_dim"]), rng)
+    return World(catalog, bots, cfg, seed)

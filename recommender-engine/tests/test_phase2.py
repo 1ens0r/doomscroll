@@ -90,6 +90,39 @@ def test_rank_scores_isolate_retrieval(cfg):
     assert np.all(np.isfinite(o))
 
 
+def test_appeal_is_user_conditional_and_deterministic(cfg):
+    a = build_world(cfg, 42, n_bots=300, n_days=2)
+    b = build_world(cfg, 42, n_bots=300, n_days=2)
+    assert np.allclose(a.catalog.idio, b.catalog.idio)
+    assert np.allclose(a.bots.pref_cat, b.bots.pref_cat)
+    assert np.allclose(a.bots.pref_idio, b.bots.pref_idio)
+    items = np.arange(200)
+    m0, q0 = a.appeal(np.zeros(200, int), items)
+    m1, q1 = a.appeal(np.ones(200, int), items)
+    assert np.all(np.isfinite(m0)) and np.all(np.isfinite(q0))
+    assert not np.allclose(m0, m1)  # same items, different bots -> different appeal
+    assert np.array_equal(q0, q1)   # global quality is user-independent
+    corr = np.corrcoef(a.bots.pref_cat[0], a.bots.taste[0])[0, 1]
+    assert corr > 0.9               # category preference tracks the real decay share
+
+
+def test_composer_prior_seen_penalty(cfg):
+    from feed.composer import ComposerState
+    z = np.array([[1.0, 0.9, 0.8, 0.7]], np.float32)
+    inv_i = np.ones((1, 4), np.float64)
+    zero = np.zeros((1, 4), np.float32)
+    knobs = {"gamma": 0.0, "alpha": 0.0, "eta": 0.0, "beta": 0.0, "epsilon": 0.0,
+             "decay": 0.8, "window_m": 5.0}
+    rng = np.random.default_rng(0)
+    cold = np.zeros((1, 4), bool)
+    c0 = ComposerState(z, np.zeros((1, 4), int), inv_i, zero, cold, 3, knobs)
+    assert c0.select(np.array([0]), rng)[0] == 0
+    prior = np.array([[3.0, 0.0, 0.0, 0.0]], np.float32)
+    c1 = ComposerState(z, np.zeros((1, 4), int), inv_i, prior, cold, 3,
+                       {**knobs, "gamma": 2.0})
+    assert c1.select(np.array([0]), rng)[0] == 1
+
+
 def test_parity_gate(cfg):
     res = parity_check(cfg, log=lambda *a: None)
     assert res["status"] == "ok" and res["pass"], res.get("checks")

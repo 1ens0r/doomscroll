@@ -29,6 +29,8 @@ def load_policy() -> dict:
     with open(POLICY_PATH) as f:
         policy = yaml.safe_load(f)
     policy["_models_dir"] = MODELS
+    # Prefer the ranker learned on simulator logs (Learn stage) when it exists.
+    policy["_taste_ckpt"] = "taste_sim.pt" if (MODELS / "taste_sim.pt").exists() else "taste.pt"
     return policy
 
 

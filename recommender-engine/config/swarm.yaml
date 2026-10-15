@@ -10,6 +10,9 @@ catalog:
   sample_power: 0.5        # sample items ~ n**power (0 = uniform tail, 1 = pure popularity)
   cold_max_n: 1            # visible impression count <= this marks a cold/low-exposure item
   pop_prior_count: 20      # pseudo-impressions smoothing the live popularity baseline
+  idio_dim: 8              # within-category latent taste dimension (user-conditional item appeal)
+  idio_gain: 0.3           # weight of the within-category term vs the real category affinity
+  match_scale: 1.0         # maps standardised preference into the response range
 
 swarm:
   bots: 10000
@@ -21,9 +24,9 @@ swarm:
 
 response:
   c0: 0.10                 # calibrated click intercept (logit)
-  match_ref: 0.03          # mean bot_taste[cat] over a flat taste (1/n_cats)
-  a_match: 2.0             # hidden taste match weight
-  b_quality: 1.2           # hidden appeal weight
+  match_ref: 0.0           # user-item match is mean-centred per bot, so 0 is neutral
+  a_match: 1.0             # hidden taste match weight (personalization must move IWE)
+  b_quality: 0.8           # hidden appeal weight (global quality is a secondary signal)
   hour_amp: 1.0            # multiplies real hour-effect profile (log-odds units)
   c_satiation: 2.0         # same-category share of last 10 impressions
   repeat_penalty: 1.8      # per prior exposure, capped at repeat_cap
@@ -31,17 +34,17 @@ response:
   d_fatigue: 0.55          # impression index / max_session_items
   satiation_window: 10
   watch_p_complete: 0.35   # base P(long view | click); rises with match and q
-  watch_complete_slope: 1.6
+  watch_complete_slope: 0.8
   watch_skip_lo: 0.02
   watch_skip_hi: 0.35
   watch_complete_lo: 0.72
   watch_complete_hi: 1.0
   p_like_base: 0.03        # calibrated to like|click ~ 4%
-  p_like_slope: 0.9
+  p_like_slope: 0.4
   like_watch_boost: 1.5    # long views raise like probability
   p_forward_base: 0.0032   # calibrated to forward|click ~ 0.42%
   p_follow_base: 0.0042    # calibrated to follow|click ~ 0.55%
-  p_highintent_slope: 1.2
+  p_highintent_slope: 0.4
   hate_base: 0.004
   hate_mismatch_slope: 1.5
   hate_quality_slope: 0.8
@@ -70,7 +73,7 @@ iwe:
   hate: -3.0
 
 ranking:
-  affinity_weight: 0.35    # blend weight of per-user category lift on top of popularity
+  affinity_weight: 0.7     # blend weight of per-user category lift on top of popularity
   lift_cap: 5.0            # clip the (noisy) decay-share lift before z-scoring
   lift_prior: 0.05         # exposure-share pseudo-count shrinking rare-category lift
 

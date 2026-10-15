@@ -11,7 +11,8 @@ import numpy as np
 from feed.composer import ComposerState, zscore_rows
 from feed.featurestate import FeatureState, hour_sincos  # noqa: F401
 from feed.metrics import Metrics
-from feed.policies import TasteScorer, build_pool, order_from_scores, rank_scores
+from feed.policies import (TasteScorer, build_pool, order_from_scores, rank_scores,
+                           taste_with_prior)
 from feed.response import ResponseModel, leave_step, return_prob
 from feed.world import DAY_MS, HOUR_MS, World, build_world
 
@@ -19,7 +20,7 @@ POLICIES = ["random", "popularity", "personal_affinity", "taste", "taste_compose
 
 
 def run_policy(world: World, policy: str, scorer: TasteScorer | None = None,
-               collect_metrics: bool = True, log=print) -> dict:
+               collect_metrics: bool = True, collector=None, log=print) -> dict:
     cfg = world.cfg
     bots, cat = world.bots, world.catalog
     n_bots, n_days = bots.n_bots, bots.counts.shape[1]
@@ -42,7 +43,7 @@ def run_policy(world: World, policy: str, scorer: TasteScorer | None = None,
             if len(sess_bots) == 0:
                 continue
             _run_wave(world, fs, resp, met, policy, scorer, sess_bots, d, w, cap, cold_max,
-                      collect_metrics)
+                      collect_metrics, collector)
         sat, skip, newf, has = met.day_stats()
         sat = np.where(has, sat, float(cfg["return_model"]["satisfaction_baseline"]))
         prob = return_prob(sat, newf, skip, cfg["return_model"])
@@ -60,7 +61,7 @@ def run_policy(world: World, policy: str, scorer: TasteScorer | None = None,
 
 
 def _run_wave(world, fs, resp, met, policy, scorer, sess_bots, d, w, cap, cold_max,
-              collect_metrics) -> None:
+              collect_metrics, collector=None) -> None:
     cfg = world.cfg
     bots, cat = world.bots, world.catalog
     n_sess = len(sess_bots)
@@ -69,9 +70,12 @@ def _run_wave(world, fs, resp, met, policy, scorer, sess_bots, d, w, cap, cold_m
     pool = build_pool(world, fs, sess_bots, ts, world.rng(7, d, w), cfg["policy"]["retrieval"])
     comp = None
     if policy in ("taste_composer", "oracle"):
-        base_name = "taste" if policy == "taste_composer" else "oracle"
-        base = rank_scores(base_name, world, fs, sess_bots, pool, ts, world.rng(8, d, w), scorer)
-        comp = ComposerState(zscore_rows(base), cat.cat[pool], fs.item_n[pool], None,
+        if policy == "taste_composer":
+            base, prior = taste_with_prior(world, fs, sess_bots, pool, ts, scorer)
+        else:
+            base = rank_scores("oracle", world, fs, sess_bots, pool, ts, world.rng(8, d, w), scorer)
+            prior = None
+        comp = ComposerState(zscore_rows(base), cat.cat[pool], fs.item_n[pool], prior,
                              fs.item_n[pool] <= cold_max, cat.n_cats, cfg["policy"]["composer"])
         order = None
     else:
@@ -97,10 +101,14 @@ def _run_wave(world, fs, resp, met, policy, scorer, sess_bots, d, w, cap, cold_m
         vcount = np.minimum(hist_n[act], sat_w)
         sat = (hist[act] == cats[:, None]).sum(1) / np.maximum(vcount, 1)
         prior_n, _ = fs.seen_counts(b, items)
-        out = resp.respond(bots.taste[b, cats], cat.q[items] + 0.0, sess_hour[act],
+        match, q = world.appeal(b, items)
+        out = resp.respond(match, q, sess_hour[act],
                            sat, prior_n, np.full(len(act), i / cap),
                            bots.like_mult[b], bots.follow_mult[b], bots.forward_mult[b],
                            uw[b, i, :])
+        if collector is not None:
+            x, ccat = fs.pair_features(b, items, ts[act])
+            collector(x, ccat, out, b)
         if collect_metrics:
             cold = fs.item_n[items] <= cold_max
             met.step(b, items, cats, out, prior_n, cold, sess_hour[act])
@@ -123,7 +131,8 @@ def _run_wave(world, fs, resp, met, policy, scorer, sess_bots, d, w, cap, cold_m
 
 def simulate(policy: str, cfg: dict, seed: int, scorer: TasteScorer | None = None,
              n_bots: int | None = None, n_days: int | None = None,
-             collect_metrics: bool = True, log=print) -> dict:
+             collect_metrics: bool = True, collector=None, log=print) -> dict:
     world = build_world(cfg, seed, n_bots=n_bots, n_days=n_days)
     world.cfg["policy"] = cfg["policy"]
-    return run_policy(world, policy, scorer, collect_metrics=collect_metrics, log=log)
+    return run_policy(world, policy, scorer, collect_metrics=collect_metrics,
+                      collector=collector, log=log)

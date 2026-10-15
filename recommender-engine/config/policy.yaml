@@ -51,13 +51,17 @@ retrieval:
   n_affinity: 50
   n_new: 30
   n_random: 20
+  affinity_prior: 2.0      # observable-history pseudo-counts for cold-start category sampling
 
+# Accepted composer knobs from Phase 3 (run_generations.py); only components that earned their
+# keep survive. gamma=0 because within-session dedup already handles repeats; beta/epsilon were
+# rejected on IWE (see reports/GENERATIONS.md).
 composer:
-  gamma: 2.0
+  gamma: 0.0
   alpha: 0.4
   eta: 0.5
-  beta: 0.3
-  epsilon: 0.05
+  beta: 0.0
+  epsilon: 0.0
   decay: 0.8
   window_m: 5
 

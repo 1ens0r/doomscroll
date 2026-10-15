@@ -23,6 +23,8 @@ class ComposerState:
         self.pool_cat = pool_cat.astype(np.int64)
         self.inv_i = (1.0 / np.sqrt(1.0 + pool_i_n.astype(np.float32)))
         self.shown = np.zeros_like(pool_i_n, dtype=np.int16)
+        self.prior = (np.zeros_like(pool_i_n, dtype=np.float32) if prior_seen is None
+                      else prior_seen.astype(np.float32))
         self.cold = cold_mask
         n_sess = taste_z.shape[0]
         m = int(knobs["window_m"])
@@ -44,7 +46,8 @@ class ComposerState:
         """Argmax of the composer score over the pool, with an epsilon exploration slot."""
         z = self.taste_z[act]
         aff = self.aff[act][np.arange(len(act))[:, None], self.pool_cat[act]]
-        score = (z - self.k["gamma"] * self.shown[act] - self.k["alpha"] * self._same_cat(act)
+        seen = self.prior[act] + self.shown[act]
+        score = (z - self.k["gamma"] * seen - self.k["alpha"] * self._same_cat(act)
                  + self.k["eta"] * aff + self.k["beta"] * self.inv_i[act])
         score = np.where(self.shown[act] > 0, -1e9, score)
         best = np.argmax(score, axis=1)
