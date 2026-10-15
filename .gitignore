@@ -6,3 +6,6 @@ __pycache__/
 venv/
 data/
 .DS_Store
+agents.md
+recommender-engine/artifacts/
+recommender-engine/models/

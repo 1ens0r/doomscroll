@@ -1,0 +1,110 @@
+# Assumptions and adaptations
+
+This file records every deviation or judgement call. The repo's `data/processed/` and `data/interim/`
+did not exist at build time (only `data/raw/KuaiSAR_v2/*.csv`), so the pipeline was adapted rather
+than guessed around. Column names below were printed from the real CSV headers.
+
+## A0. Environment / stack
+- System `python3` has no torch. Build uses the existing conda env `~/miniconda3/envs/picograd`
+  (torch 2.13.0+cu130 running CPU-only, pandas 3.0.5, numpy 2.5.1, sklearn 1.9, pyarrow 26).
+- CPU only: `torch.set_num_threads(8)`; all tensors float32. Seed 42 everywhere.
+
+## A1. Missing processed artifacts (biggest adaptation)
+- `data/processed/feature_dictionary.csv`, `preprocess_config.json` and `data/interim/schema.json`
+  were absent. `eda/` notebooks were not run. Hard rule: never modify `data/` or `eda/`.
+- Decision: `prepare_data.py` performs the notebook-02 equivalent **once** from raw CSVs with
+  column selection and chunked IO, and writes equivalents to `recommender-engine/artifacts/`:
+  `features_{train,val,test}.parquet`, `user_interest.parquet`, `user_stats.parquet`,
+  `item_stats.parquet`, `feature_dictionary.csv`, `preprocess_config.json`, `schema.json`.
+- Downstream code always reads these parquet artifacts, never raw events.
+- Real raw headers (verified):
+  - `rec_inter.csv`: `user_id,item_id,duration_ms,playing_time,timestamp,forward,like,follow,search_photo_related,search,click,time` (14.61M rows, feed)
+  - `src_inter.csv`: `user_id,search_session_id,search_session_timestamp,search_session_source,keyword,item_id,click_cnt,item_type,time` (5.06M rows, search)
+  - `item_features.csv`: `item_id,first_level_category_id,first_level_category_name,...,caption,author_id,item_type,upload_time,...`
+  - `user_features.csv`: `user_id,onehot_feat1,onehot_feat2,search_active_level,rec_active_level`
+
+## A2. Search rows only log clicks
+- `src_inter.csv` has `click_cnt` and nothing else. Like/follow/forward/watch are **unobserved**,
+  not negative, for search rows (README `observed_by_source`).
+- Decision: event flags default 0; loss masks the like/follow/forward/watch heads on search rows
+  (`obs_*` columns). Feature counters treat unlogged as 0 (matches README "unlogged actions are 0").
+
+## A3. No hate/dislike flag in KuaiSAR-v2
+- No offline hate head ("If a hate/dislike flag exists, add a head, else skip it").
+- Hate exists only in the swarm: bots have a hidden hate response (psychology) and IWE includes
+  hate -3. Logged here because it cannot be validated against real data.
+
+## A4. Labels (from README, made explicit)
+- `play_ratio = playing_time / duration_ms`, clip to [0, 5]; non-positive duration -> NaN (2.69% raw).
+- long-view = `play_ratio >= 0.7`. Verified: median ratio 0.218 (matches README), >=0.7 on ~31% of
+  feed rows, 57.5% of clicks, 2.7% of feed rows are unclicked long-views.
+- tier: 4 if follow or forward; else 3 if like; else 2 if search-click **or an unclicked long-view**;
+  else 1 if click; else 0. Rationale: a naive "long-view => tier 2" rule makes 29% of events tier 2,
+  but the README reports tier 2 = 2.0% and tier 1 (click) = 43.2%; only "unclicked long-view +
+  search-click" reproduces the README mix. Search clicks get min tier 2.
+- score = 1*click + 2*long-view + 3*like + 4*forward + 5*follow + 2*search-click. pos = score > 0.
+  (long-view contributes to score even when the row is tier 1 by max-action priority.)
+- NDCG gains by tier: [0, 1, 2, 3, 4] (`tier_gains` in preprocess_config.json).
+- Unequal split ratios (0.50/0.70/0.85 of modelled events on time axis) reproduce the README's
+  train 2.73M / val 1.51M / test 1.34M label-window sizes approximately.
+
+## A5. Decayed counters
+- Half-life 3 days, lookback 7 days per README. Offline features use pure exponential decay with
+  lambda = ln2 / 3d over all prior history (7-day truncation under this decay changes weights by
+  < 1e-7, so it is numerically irrelevant offline). The swarm `FeatureState` implements the explicit
+  7-day window so the live path matches config exactly; parity is checked against this offline set.
+- `uc_decay_share = uc_decay / user_decay_total`, `uc_exposure_share = uc_n / u_n_events`,
+  `uc_lift = uc_decay_share / (uc_exposure_share + 1e-9)` (docs say "lift = decay/exposure";
+  normalised shares are the scale-free reading).
+- `u_mean_score`, `u_pos_rate`, rates: cumulative prior means including search events with
+  unlogged actions as 0. `u_play_ratio` uses only observed feed play ratios.
+
+## A6. Static vs as-of features
+- `i_duration` is a static item property (median of observed durations), not label-derived: used
+  for all splits to avoid self-referential pathology.
+- All count/rate/decay features are strictly as-of: computed from events with `t' < t` only
+  (cumulative sums excluding the current row). `cold_*` flags are "no prior history".
+
+## A7. Category ids
+- The real `first_level_category_id` column has **37** distinct numeric values (one is a 503K-item
+  "空"/empty placeholder), not the 38 the README headline suggests (likely counted elsewhere).
+  `cat_id` remapped to contiguous 0..36; unmapped items -> unknown bucket 37; total embedding rows = 38.
+- `n_cats` / `cat_embed_rows` recorded in `artifacts/preprocess_config.json`; model reads them
+  (no hardcoded 39).
+
+## A8. Model input scaling
+- Dense features standardised with train-split mean/std only (`scaler.json` persisted).
+- `i_n` enters as `log1p(i_n)`; `i_duration` and `ctx_hour_sin/cos` used raw (standardised anyway).
+- `ui_prior_max_tier` used raw (0..4). `cat_id` never standardised (embedding).
+
+## A9. Evaluation
+- NDCG@10/@20 per user over that user's label-window impressions (listwise, one ranking per user).
+- Users kept if >= 2 impressions and >= 2 distinct tier levels (label variance).
+- 95% CIs by bootstrapping users (2000 resamples) with paired comparisons where relevant.
+- LightGBM lambdarank ceiling attempted on identical features; reported as optional, not required.
+
+## A10. Swarm
+- The simulator is hand-designed and calibrated to marginal targets only; absolute IWE levels are
+  not claims about real users, results are relative improvements under the stated assumptions.
+- Bots never see or call the Taste model; they are driven by hidden taste + response psychology.
+- Common random numbers: every policy faces the same per-bot RNG streams (paired comparisons).
+- `calibrate.py` writes fitted constants to `artifacts/calibration.json`; `swarm.py` layers that
+  file over `swarm.yaml`. Calibration targets live in `swarm.yaml` and are never edited by code.
+- Sim session length capped at 100 items, patience median 8 ("median session 8 events").
+- 5% daily catalog replacement with zero-stat cold items; visible item stats update live.
+
+## A11. Session-length target vs measurement
+- README target: median session 8 items. Measured on the real data: median 20 items on a raw
+  2,000-user sample, 74 on the k-core modelled users (heavy-user selection). The k-core users
+  are ~1090 events/user, so long sessions are expected in the modelled population.
+- Decision: `patience_median = 8` stays the calibration target (spec: "never adjust targets"), and
+  `reports/calibration.md` reports sim vs target AND sim vs measured-on-modelled-users so the gap is
+  transparent. Bots' per-session patience base is drawn lognormal(median 8) per library spec.
+
+## A12. Phase 0 build numbers (full run, 90.6s)
+- 19,610,588 events after dedup (54,297 exact dups), k-core 5/3 in 3 iterations -> 13,061,273 rows,
+  25,865 users, 1,303,360 items. Feature computation + aggregates: 50.1s.
+- Splits: train 2,612,256 / val 1,959,189 / test 1,959,194 label-window rows; 0 NaNs in 28 features.
+- Real marginals saved to `artifacts/real_marginals.json` (click 0.538, like|click 0.0423,
+  follow|click 0.0058, repeat decay and engagement-by-length curves) — calibration compares against
+  these same-script numbers plus the README targets in `swarm.yaml`.

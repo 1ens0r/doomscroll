@@ -1,0 +1,73 @@
+# Policy + model configuration. Every tunable lives here; code reads it.
+seed: 42
+python_threads: 8
+
+paths:
+  artifacts: artifacts
+  models: models
+  reports: ../reports
+
+model:
+  dropout: 0.1
+  user_hidden: [64, 32]
+  video_hidden: [64, 32]
+  pair_hidden: [32]
+  fusion_hidden: [128, 64]
+  cat_emb_dim: 16
+  loss_weights: {click: 1.0, like: 2.0, follow: 3.0, forward: 3.0, watch: 1.0}
+  pos_weight_cap: 10.0
+
+train:
+  lr: 0.002
+  weight_decay: 0.0001
+  batch_size: 4096
+  max_epochs: 6
+  early_stop_patience: 2
+  early_stop_metric: ndcg@10
+  eval_every: 1
+
+score_weights: {click: 1.0, watch: 2.0, like: 3.0, forward: 4.0, follow: 5.0}
+
+retrieval:
+  pool_size: 150
+  n_popular: 50
+  n_affinity: 50
+  n_new: 30
+  n_random: 20
+
+composer:
+  gamma: 2.0
+  alpha: 0.4
+  eta: 0.5
+  beta: 0.3
+  epsilon: 0.05
+  decay: 0.8
+  window_m: 5
+
+# (1+lambda) evolution strategy over policy knobs.
+evolve:
+  population: 12
+  generations: 8
+  sigma_frac: 0.15
+  sigma_decay: 0.85
+  penalty_frac: 0.05
+  train: {bots: 2000, days: 3, seed: 1}
+  val: {bots: 5000, days: 7, seed: 2}
+  test: {bots: 10000, days: 7, seed: 3}
+  knobs:
+    gamma:       {value: 2.0,  min: 0.0, max: 5.0}
+    alpha:       {value: 0.4,  min: 0.0, max: 1.5}
+    eta:         {value: 0.5,  min: 0.0, max: 2.0}
+    beta:        {value: 0.3,  min: 0.0, max: 1.5}
+    epsilon:     {value: 0.05, min: 0.0, max: 0.25}
+    d:           {value: 0.8,  min: 0.5, max: 1.0}
+    m:           {value: 5.0,  min: 1.0, max: 10.0}
+    w_click:     {value: 1.0,  min: 0.0, max: 3.0}
+    w_watch:     {value: 2.0,  min: 0.0, max: 4.0}
+    w_like:      {value: 3.0,  min: 0.5, max: 6.0}
+    w_forward:   {value: 4.0,  min: 0.5, max: 8.0}
+    w_follow:    {value: 5.0,  min: 0.5, max: 10.0}
+    n_popular:   {value: 50.0, min: 10.0, max: 90.0}
+    n_affinity:  {value: 50.0, min: 10.0, max: 90.0}
+    n_new:       {value: 30.0, min: 5.0, max: 60.0}
+    n_random:    {value: 20.0, min: 5.0, max: 50.0}
