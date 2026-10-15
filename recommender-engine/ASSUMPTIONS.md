@@ -101,6 +101,39 @@ than guessed around. Column names below were printed from the real CSV headers.
   `reports/calibration.md` reports sim vs target AND sim vs measured-on-modelled-users so the gap is
   transparent. Bots' per-session patience base is drawn lognormal(median 8) per library spec.
 
+## A13. Phase 1 baselines adapted to the measured within-user signal
+- The plan named B2 = global popularity `i_n` (prior impression count) and B3 = personal affinity
+  `uc_decay_share`. On the actual eval (graded NDCG@10 per user over their feed label-window
+  impressions), both **lose to random**: val `i_n` 0.4167 vs random 0.4293; `uc_decay_share` 0.4249.
+  Debugging (masks, scaling, label alignment all verified; item-quality features rank strongly at
+  0.47-0.48) shows this is exposure/repeat bias, not a bug — exactly the EDA's "popularity is a
+  coverage hack" finding. Ranking a user's own impressions by how exposed those items are selects
+  the items the user is most fatigued by.
+- Decision (kept the ladder meaningful, spirit of the plan):
+  B2 "global popularity" = `i_mean_score` (prior mean intent score — exposure-weighted by
+  engagement); B3 "personalized popularity" = `i_mean_score * (1 + uc_lift)` where
+  `uc_lift = uc_decay_share / uc_exposure_share`. The literal `i_n` and `uc_decay_share` scores
+  are still evaluated every run and logged as `diag_exposure_pop` / `diag_decay_share`.
+- Acceptance check implemented as: paired user-bootstrap 95% CI of the NDCG@10 difference must
+  exclude 0 for taste>b3, b3>b2, b2>b1, on feed scope, in both val and test. In `--fast` the
+  result is printed but not enforced (smoke mode). Both full splits pass (`reports/phase1.md`).
+
+## A14. Phase 1 model/training choices
+- TasteNet implements the plan architecture verbatim; final size is **32,357 params** (plan
+  estimated ~100k — the estimate, not the architecture, was off). Best epoch 5 of 6.
+- `pos_weight = min(sqrt(neg/pos), cap=10)` per head on observed rows only (train): click 1.005,
+  like 5.67, follow 10, forward 10, watch 1.156.
+- LightGBM ceiling: identical dense features + `cat_id` as categorical, `label_gain=[0,1,2,3,4]`,
+  300 trees, lr 0.05, 63 leaves, early stop 30 rounds, 600s budget → finished 50.4s (best iter 295).
+  Reported as a reference, never part of acceptance.
+- `--fast` = uniform row samples (train 200k / val 300k / test 200k), 1 epoch, 500 bootstraps,
+  checkpoint `models/taste_fast.pt` (never clobbers `models/taste.pt`).
+  Short per-user lists inflate NDCG levels; fast numbers are smoke-only, never compared to full.
+- Fixed two latent data-layer bugs: `load_split` requested duplicate columns (`watch`,
+  `cold_item`, `cold_user`), which pyarrow returns as 2-D frames and broke `load_xy`; read-time
+  de-dup added. The committed `artifacts/scaler.json` was stale (27 names / 29 mean+std entries);
+  rebuilt from train via `python -m feed.data`.
+
 ## A12. Phase 0 build numbers (full run, 90.6s)
 - 19,610,588 events after dedup (54,297 exact dups), k-core 5/3 in 3 iterations -> 13,061,273 rows,
   25,865 users, 1,303,360 items. Feature computation + aggregates: 50.1s.

@@ -28,6 +28,23 @@ train:
 
 score_weights: {click: 1.0, watch: 2.0, like: 3.0, forward: 4.0, follow: 5.0}
 
+# Offline evaluation (Phase 1): graded NDCG over each user's label-window impressions.
+eval:
+  ndcg_ks: [10, 20]
+  primary_k: 10
+  min_impressions: 2
+  min_tiers: 2
+  bootstrap_resamples: 2000
+  bootstrap_seed: 42
+
+# Optional LightGBM lambdarank ceiling on identical features (budget enforced by hand).
+baselines:
+  lgbm_budget_sec: 600
+  lgbm_n_estimators: 300
+  lgbm_learning_rate: 0.05
+  lgbm_num_leaves: 63
+  lgbm_early_stop_rounds: 30
+
 retrieval:
   pool_size: 150
   n_popular: 50

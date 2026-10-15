@@ -35,9 +35,14 @@ def load_config() -> dict:
         return json.load(f)
 
 
+def _dedup(cols: list[str]) -> list[str]:
+    seen: set[str] = set()
+    return [c for c in cols if not (c in seen or seen.add(c))]
+
+
 def load_split(split: str, columns: list[str] | None = None) -> pd.DataFrame:
     """Column-selective parquet read; never loads all columns unless asked."""
-    cols = columns or (ID_COLS + EVAL_COLS + FEATURES + HEADS + list(HEAD_MASKS.values())[1:] + ["watch"])
+    cols = columns or _dedup(ID_COLS + EVAL_COLS + FEATURES + HEADS + list(HEAD_MASKS.values())[1:])
     return pd.read_parquet(ART / f"features_{split}.parquet", columns=cols)
 
 
