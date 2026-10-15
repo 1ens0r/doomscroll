@@ -58,7 +58,12 @@ def fit_scaler(train: pd.DataFrame) -> dict:
 
 
 def standardize(df: pd.DataFrame, scaler: dict) -> np.ndarray:
-    x = df[DENSE].to_numpy(np.float64)
+    return standardize_matrix(df[DENSE].to_numpy(np.float64), scaler)
+
+
+def standardize_matrix(x: np.ndarray, scaler: dict) -> np.ndarray:
+    """Same train-only standardisation as `standardize`, but on a raw (n, 27) array."""
+    x = np.asarray(x, dtype=np.float64).copy()
     for name in scaler["log1p"]:
         j = DENSE.index(name)
         x[:, j] = np.log1p(np.clip(x[:, j], 0, None))

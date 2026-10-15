@@ -4,27 +4,33 @@ seed: 42
 catalog:
   n_items: 50000
   daily_replacement: 0.05
-  q_noise: 0.15            # hidden appeal = clip(item_mean_score_norm + N(0, noise))
+  q_noise: 0.15            # hidden appeal = clip(mean_score / q_scale + N(0, noise))
   q_floor: 0.05
+  q_scale: 3.0             # mean_score ~ [0,11]; /3 keeps most items inside [0,1]
+  sample_power: 0.5        # sample items ~ n**power (0 = uniform tail, 1 = pure popularity)
+  cold_max_n: 1            # visible impression count <= this marks a cold/low-exposure item
+  pop_prior_count: 20      # pseudo-impressions smoothing the live popularity baseline
 
 swarm:
   bots: 10000
   days: 7
   session_gap_min: 30      # sessions split on a 30-minute gap (README)
   max_session_items: 100
-  n_sessions_wave_max: 8   # lockstep waves per simulated day
+  waves_per_day: 8         # lockstep session-ordinal waves per simulated day
+  max_sessions_per_bot_day: 8
 
 response:
-  c0: 0.10                 # calibrated
+  c0: 0.10                 # calibrated click intercept (logit)
+  match_ref: 0.03          # mean bot_taste[cat] over a flat taste (1/n_cats)
   a_match: 2.0             # hidden taste match weight
   b_quality: 1.2           # hidden appeal weight
   hour_amp: 1.0            # multiplies real hour-effect profile (log-odds units)
   c_satiation: 2.0         # same-category share of last 10 impressions
-  repeat_penalty: 1.8      # per prior exposure, capped at 3
+  repeat_penalty: 1.8      # per prior exposure, capped at repeat_cap
   repeat_cap: 3
   d_fatigue: 0.55          # impression index / max_session_items
   satiation_window: 10
-  watch_p_complete: 0.35   # base P(watch >= 0.7 | click); rises with match and q
+  watch_p_complete: 0.35   # base P(long view | click); rises with match and q
   watch_complete_slope: 1.6
   watch_skip_lo: 0.02
   watch_skip_hi: 0.35
@@ -32,6 +38,7 @@ response:
   watch_complete_hi: 1.0
   p_like_base: 0.03        # calibrated to like|click ~ 4%
   p_like_slope: 0.9
+  like_watch_boost: 1.5    # long views raise like probability
   p_forward_base: 0.0032   # calibrated to forward|click ~ 0.42%
   p_follow_base: 0.0042    # calibrated to follow|click ~ 0.55%
   p_highintent_slope: 1.2
@@ -42,6 +49,7 @@ response:
 leave:
   patience_median: 8.0
   patience_sigma: 0.7      # lognormal sigma
+  step_cost: 1.0
   reward_satisfying: 0.4
   penalty_skip: 0.6
   penalty_repeat: 0.5
@@ -60,6 +68,11 @@ iwe:
   forward: 4.0
   follow: 5.0
   hate: -3.0
+
+ranking:
+  affinity_weight: 0.35    # blend weight of per-user category lift on top of popularity
+  lift_cap: 5.0            # clip the (noisy) decay-share lift before z-scoring
+  lift_prior: 0.05         # exposure-share pseudo-count shrinking rare-category lift
 
 # Real-data calibration targets (README 30s EDA). Never edited by code.
 calibration:
@@ -81,6 +94,33 @@ calibration:
   tolerance: 0.15
   n_bots: 2000
   n_days: 3
+  waves_per_day: 4
+  max_session_items: 50
+  max_passes: 3
+  params:
+    c0:             {range: [-2.0, 2.0]}
+    p_like_base:    {range: [0.005, 0.15]}
+    p_follow_base:  {range: [0.0005, 0.03]}
+    p_forward_base: {range: [0.0005, 0.03]}
+    patience_median: {range: [3.0, 20.0]}
+    reward_satisfying: {range: [0.0, 1.2]}
+    penalty_skip:   {range: [0.2, 2.0]}
+    repeat_penalty: {range: [0.0, 6.0]}
+    hour_amp:       {range: [0.0, 3.0]}
+
+metrics:
+  bootstrap_resamples: 2000
+  bootstrap_seed: 42
+  primary_metric: iwe
+
+cohorts:
+  activity_terciles: 3
+  taste_breadth_terciles: 2
+
+parity:
+  n_users: 150
+  max_events_per_user: 1200
+  tolerance: 0.15
 
 figures:
   palette: ["#4C72B0", "#DD8452", "#55A868", "#C44E52", "#8172B3", "#937860", "#DA8BC3", "#8C8C8C"]

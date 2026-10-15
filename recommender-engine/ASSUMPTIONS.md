@@ -141,3 +141,47 @@ than guessed around. Column names below were printed from the real CSV headers.
 - Real marginals saved to `artifacts/real_marginals.json` (click 0.538, like|click 0.0423,
   follow|click 0.0058, repeat decay and engagement-by-length curves) — calibration compares against
   these same-script numbers plus the README targets in `swarm.yaml`.
+
+## A15. Phase 2 swarm design decisions
+- **Retrieval pool fixed across policies** (popular 50 + taste-distribution affinity 50 + cold/new 30
+  + uniform random 20 = 150), so the ladder isolates the *ranker*, per the plan. Consequence: the
+  `random` policy draws from an already semi-personalized pool, which makes it a stronger baseline
+  than uniform-over-catalog.
+- **`popularity` = `item_popularity`** = smoothed mean observed intent score (`pop_sum / pop_count`,
+  Bayesian prior 20). It is deliberately the same quantity the offline model treats as "global
+  engagement popularity" (A13), and it is initialized from real `item_stats`, so it tracks hidden
+  appeal `q` closely.
+- **`personal_affinity` = z(popularity) + w·z(shrunk lift)**, `lift = decay_share / (exposure_share +
+  lift_prior)`, clipped to `lift_cap` (weights/caps in `swarm.yaml:ranking`). Shrinkage is needed
+  because raw `uc_lift` explodes for rarely-exposed categories.
+- **`oracle` = true expected click propensity** `a_match·(match − match_ref) + b_quality·(q − 0.5)`
+  using hidden taste and hidden `q`, driven through the same adaptive composer as `taste_composer`;
+  `match` is `bots.taste[b, cat]` in [0,1] (not ×`n_cats`).
+- **CRN**: bot schedule (counts/hour/patience/return-u) is pre-drawn per bot from
+  `SeedSequence(seed).spawn(n_bots)`; response uniforms are drawn as a full `(n_bots, cap, 7)` block
+  per `(day, wave)` from `world.rng(6, d, w)`, so all policies face identical draws.
+- **Hidden appeal** `q = clip(real mean_score / q_scale + N(0, q_noise), q_floor, 1)`; `q_noise`,
+  `q_scale`, `sample_power`, `pop_prior_count` in `swarm.yaml:catalog`.
+- Fixed a real bug: NaN `decay_share` in `user_interest.parquet` (1,406 rows) made `bots.taste`
+  contain NaN, which silently disabled clicks for affected bots. `nan_to_num` applied at build.
+
+## A16. Phase-2 finding: offline Taste model does not transfer to the simulator (documented, not fixed)
+- In-sim `corr(score, true category match) ≈ 0.0` while offline `corr(score, tier)=0.39` and
+  `corr(score, i_mean_score)=0.40`. Cause: live bot counters start at zero, whereas offline features
+  were computed over full history (`u_n_events` ≈ 2120 offline vs tens in-sim) — the model is OOD and
+  falls back to its category embedding.
+- Time-boxed attempted fix: seed each bot's `FeatureState` from **train-window** per-user aggregates
+  (no test leakage) read directly from `features_train.parquet`. Result: in-sim `corr(score, q)`
+  rose 0.03→0.24, but `corr(score, match)` stayed ≈ −0.01 and live-feature means were still ~50% of
+  `features_test` (train-window users are far less mature than the test window — temporal drift).
+  Pass check (`corr ≥ 0.3` AND parity within 15%) failed, so the seeding code was **not merged**.
+- Consequently the IWE ladder passes only `random < popularity` and `taste < oracle`; the
+  `popularity < personal_affinity` rung fails and `personal_affinity < taste` is a tie. Fully
+  reported in `reports/phase2.md`; `run_swarm.py` exits non-zero when the gate fails.
+
+## A17. Calibration targets partially unmet (by construction)
+- 9/12 targets within 15% (`artifacts/calibration_report.json`, `reports/calibration.md`). The three
+  misses (hour trough, repeat ×3, engagement of 31–100-item sessions) are structural: the artifacts
+  contain no deep 3–4h engagement crater, the repeat multiplier decays sub-linearly while the model
+  uses one linear penalty, and session length is coupled to engagement by the leave model. Targets
+  were kept fixed and the gaps are reported rather than hidden.
