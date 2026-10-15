@@ -246,6 +246,7 @@ FEATURE_COLS = [
 ]
 LABEL_COLS = ["user_id", "item_id", "ts", "day", "hour", "tier", "score", "pos", "is_search"]
 MASK_COLS = ["obs_like", "obs_follow", "obs_forward", "obs_watch"]
+ACTION_COLS = ["click", "like", "follow", "forward"]
 
 
 def finalize(df: pd.DataFrame) -> pd.DataFrame:
@@ -256,4 +257,4 @@ def finalize(df: pd.DataFrame) -> pd.DataFrame:
     df["obs_forward"] = feed
     df["obs_watch"] = feed
     df["watch"] = df["play_ratio"].clip(0.0, 1.0)
-    return df[LABEL_COLS + FEATURE_COLS + MASK_COLS + ["watch"]]
+    return df[LABEL_COLS + ACTION_COLS + FEATURE_COLS + MASK_COLS + ["watch"]]
