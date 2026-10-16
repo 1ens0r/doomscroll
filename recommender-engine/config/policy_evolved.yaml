@@ -1,21 +1,23 @@
 composer:
-  gamma: 0.028722100640785786
-  alpha: 0.9169852449368447
-  eta: 1.161274812431303
+  gamma: 0.9595767045442181
+  alpha: 0.8587593592249384
+  eta: 1.195048496763621
   beta: 0.0
   epsilon: 0.0
-  decay: 0.9223301532041229
-  window_m: 9
+  decay: 0.7474226538584331
+  window_m: 5
+  alpha_recency: 0.9778385565979922
+  alpha_growth: 0.08894238366091084
 score_weights:
-  click: 1.6430108355362572
-  watch: 1.5932507705720227
-  like: 4.73996061197423
-  forward: 6.876871413420349
-  follow: 4.6170007417838965
+  click: 1.5051608444066351
+  watch: 4.0
+  like: 4.219280705615512
+  forward: 0.5
+  follow: 3.611114763901732
 retrieval:
-  pool_size: 155
-  n_popular: 48
-  n_affinity: 65
-  n_new: 23
-  n_random: 19
+  pool_size: 176
+  n_popular: 59
+  n_affinity: 60
+  n_new: 29
+  n_random: 28
   affinity_prior: 2.0

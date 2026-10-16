@@ -18,6 +18,8 @@ KNOB_BLOCKS: dict[str, tuple[str, str]] = {
     "epsilon": ("composer", "epsilon"),
     "d": ("composer", "decay"),
     "m": ("composer", "window_m"),
+    "r": ("composer", "alpha_recency"),
+    "g": ("composer", "alpha_growth"),
     "w_click": ("score_weights", "click"),
     "w_watch": ("score_weights", "watch"),
     "w_like": ("score_weights", "like"),

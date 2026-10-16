@@ -5,7 +5,8 @@ from __future__ import annotations
 
 import numpy as np
 
-KNOWS = ("gamma", "alpha", "eta", "beta", "epsilon", "decay", "window_m")
+KNOWS = ("gamma", "alpha", "eta", "beta", "epsilon", "decay", "window_m",
+         "alpha_recency", "alpha_growth")
 
 
 def zscore_rows(scores: np.ndarray) -> np.ndarray:
@@ -34,20 +35,34 @@ class ComposerState:
         self.k = {key: float(knobs[key]) for key in ("gamma", "alpha", "eta", "beta")}
         self.epsilon = float(knobs["epsilon"])
         self.decay = float(knobs["decay"])
+        self.alpha_recency = float(knobs.get("alpha_recency", 1.0))
+        self.alpha_growth = float(knobs.get("alpha_growth", 0.0))
         self.m = max(1, m)
 
     def _same_cat(self, act: np.ndarray) -> np.ndarray:
+        """Category-run penalty. `alpha_recency<1` weights recent occurrences more (so a just-seen
+        topic is penalised harder than one from the top of the window)."""
         cats = self.pool_cat[act]
         rec = self.recent[act]
         hit = cats[:, :, None] == rec[:, None, :]
-        return hit.sum(axis=2).astype(np.float32)
+        if self.alpha_recency >= 1.0:
+            return hit.sum(axis=2).astype(np.float32)
+        n = self.recent_n[act]
+        slots = np.arange(self.m)[None, :]
+        age = (n[:, None] - 1 - slots) % self.m
+        valid = slots < np.minimum(n[:, None], self.m)
+        w = np.where(valid, self.alpha_recency ** age, 0.0).astype(np.float32)
+        return (hit * w[:, None, :]).sum(axis=2).astype(np.float32)
 
     def select(self, act: np.ndarray, rng: np.random.Generator) -> np.ndarray:
         """Argmax of the composer score over the pool, with an epsilon exploration slot."""
         z = self.taste_z[act]
         aff = self.aff[act][np.arange(len(act))[:, None], self.pool_cat[act]]
         seen = self.prior[act] + self.shown[act]
-        score = (z - self.k["gamma"] * seen - self.k["alpha"] * self._same_cat(act)
+        # `alpha_growth` makes the diversity penalty stiffen as a session lengthens, so a long
+        # session cannot collapse back into a single topic after a diverse start.
+        mult = 1.0 + self.alpha_growth * (self.recent_n[act].astype(np.float32) / self.m)
+        score = (z - self.k["gamma"] * seen - (self.k["alpha"] * mult)[:, None] * self._same_cat(act)
                  + self.k["eta"] * aff + self.k["beta"] * self.inv_i[act])
         score = np.where(self.shown[act] > 0, -1e9, score)
         best = np.argmax(score, axis=1)

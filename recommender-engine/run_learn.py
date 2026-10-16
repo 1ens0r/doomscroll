@@ -45,6 +45,8 @@ def main() -> int:
     ap.add_argument("--policy-config", action="store_true")
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--ckpt", default="taste_sim.pt")
+    ap.add_argument("--variant", default=None, help="model variant (e.g. wide); default baseline")
+    ap.add_argument("--loss", default=None, help="train loss name (e.g. hybrid); default from yaml")
     args = ap.parse_args()
 
     t_start = time.time()
@@ -60,6 +62,10 @@ def main() -> int:
     meta = load_meta()
     gains = load_preprocess_config()["tier_gains"]
     scaler = load_scaler()
+    if args.variant:
+        policy["_model_variant"] = args.variant
+    if args.loss:
+        policy["train"]["loss"] = args.loss
 
     n_bots = args.bots if args.bots else (1000 if args.fast else 3000)
     n_days = args.days if args.days else (3 if args.fast else 5)
@@ -71,8 +77,11 @@ def main() -> int:
     train, val = make_bundle(raw, scaler, val_frac=0.2, seed=seed)
     t_gen = time.time() - t0
 
-    model = build_model(meta, policy)
-    print(f"[learn] TasteNet params={n_params(model):,}")
+    variant = policy.get("_model_variant")
+    policy["_gains"] = list(gains)
+    model = build_model(meta, policy, variant=variant)
+    print(f"[learn] TasteNet params={n_params(model):,} variant={variant or 'baseline'} "
+          f"loss={policy['train'].get('loss', 'masked_bce')}")
     t0 = time.time()
     report = train_taste(model, train, val, policy, gains, seed)
     t_train = time.time() - t0
@@ -88,7 +97,8 @@ def main() -> int:
     val_ndcg = float(nd.mean()) if len(nd) else float("nan")
 
     MODELS.mkdir(exist_ok=True)
-    torch.save({"state_dict": model.state_dict(), "blocks": block_indices(meta["dense"]),
+    torch.save({"state_dict": model.state_dict(), "variant": variant,
+                "blocks": block_indices(meta["dense"]),
                 "cat_rows": int(meta["cat_embed_rows"]), "model_cfg": policy["model"],
                 "feature_list": meta, "pos_weights": report["pos_weights"],
                 "best_epoch": report["best_epoch"], "best_val_ndcg10": report["best_val_ndcg10"],

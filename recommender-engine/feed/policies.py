@@ -37,12 +37,14 @@ class TasteScorer:
         torch.set_num_threads(int(threads))
         self.meta = load_meta()
         self.scaler = load_scaler()
-        self.model = build_model(self.meta, policy)
         self.ckpt_name = policy.get("_taste_ckpt", "taste.pt")
         ckpt = torch.load(str(policy["_models_dir"] / self.ckpt_name), map_location="cpu",
                           weights_only=False)
+        variant = policy.get("_model_variant") or ckpt.get("variant")
+        self.model = build_model(self.meta, policy, variant=variant)
         self.model.load_state_dict(ckpt["state_dict"])
         self.model.eval()
+        self.variant = variant or "baseline"
         self.weights = policy["score_weights"]
 
     @torch.no_grad()

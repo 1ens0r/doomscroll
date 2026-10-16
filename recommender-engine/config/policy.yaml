@@ -14,10 +14,59 @@ model:
   pair_hidden: [32]
   fusion_hidden: [128, 64]
   cat_emb_dim: 16
+  activation: relu       # relu | gelu | silu | tanh
+  norm: none             # none | layernorm | batchnorm
+  cross_rank: 0          # >0 adds a low-rank user x item bilinear cross-feature term
   loss_weights: {click: 1.0, like: 2.0, follow: 3.0, forward: 3.0, watch: 1.0}
   pos_weight_cap: 10.0
+  pos_weight_mode: sqrt  # sqrt | none | enn (effective-number ratio)
+  # Capacity variants (Phase 7). The baseline is `baseline`; each other entry is merged over the
+  # base config above. Only one is trained per run; selection is on validation, test touched once.
+  variants:
+    - name: baseline
+      user_hidden: [64, 32]
+      video_hidden: [64, 32]
+      pair_hidden: [32]
+      fusion_hidden: [128, 64]
+      cat_emb_dim: 16
+      dropout: 0.1
+      cross_rank: 0
+    - name: wide
+      user_hidden: [128, 64]
+      video_hidden: [128, 64]
+      pair_hidden: [64]
+      fusion_hidden: [256, 128]
+      cat_emb_dim: 24
+      dropout: 0.1
+      cross_rank: 0
+    - name: wide_deep
+      user_hidden: [128, 64, 32]
+      video_hidden: [128, 64, 32]
+      pair_hidden: [64, 32]
+      fusion_hidden: [256, 128, 64]
+      cat_emb_dim: 24
+      dropout: 0.15
+      cross_rank: 0
+    - name: cross
+      user_hidden: [64, 32]
+      video_hidden: [64, 32]
+      pair_hidden: [32]
+      fusion_hidden: [128, 64]
+      cat_emb_dim: 16
+      dropout: 0.1
+      cross_rank: 32
+    - name: big
+      user_hidden: [256, 128]
+      video_hidden: [256, 128]
+      pair_hidden: [128]
+      fusion_hidden: [512, 256]
+      cat_emb_dim: 32
+      dropout: 0.2
+      activation: gelu
+      cross_rank: 0
 
 train:
+  loss: masked_bce      # masked_bce | equal_heads | uncertainty | lambdarank | hybrid  (L0-L7)
   lr: 0.002
   weight_decay: 0.0001
   batch_size: 4096
@@ -25,6 +74,11 @@ train:
   early_stop_patience: 2
   early_stop_metric: ndcg@10
   eval_every: 1
+  scheduler: onecycle   # onecycle | cosine
+  grad_clip: null       # null disables gradient clipping
+  rank_scale: 1.0       # L3 only
+  rank_max_group: 64    # L3 only: cap rows per user per batch
+  rank_weight: 0.5      # hybrid only: lambda on the listwise term added to masked BCE
 
 score_weights: {click: 1.0, watch: 2.0, like: 3.0, forward: 4.0, follow: 5.0}
 
@@ -64,6 +118,8 @@ composer:
   epsilon: 0.0
   decay: 0.8
   window_m: 5
+  alpha_recency: 1.0   # <1 weights recent topics harder in the diversity penalty (Phase A)
+  alpha_growth: 0.0    # >0 stiffens the diversity penalty as a session lengthens (Phase A)
 
 # (1+lambda) evolution strategy over policy knobs.
 evolve:
@@ -84,6 +140,8 @@ evolve:
     epsilon:     {value: 0.0,  min: 0.0, max: 0.25}
     d:           {value: 0.8,  min: 0.5, max: 1.0}
     m:           {value: 5.0,  min: 1.0, max: 10.0}
+    r:           {value: 1.0,  min: 0.5, max: 1.0}
+    g:           {value: 0.0,  min: 0.0, max: 0.5}
     w_click:     {value: 1.0,  min: 0.0, max: 3.0}
     w_watch:     {value: 2.0,  min: 0.0, max: 4.0}
     w_like:      {value: 3.0,  min: 0.5, max: 6.0}

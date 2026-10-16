@@ -30,9 +30,15 @@ GENERATIONS = [
      "up-rank under-exposed items via beta/sqrt(1+i_n)"),
     (5, "epsilon exploration", "epsilon", 0.05,
      "reserve an occasional cold-item slot instead of always exploiting"),
+    (6, "recency-weighted diversity", "alpha_recency", 0.85,
+     "weight just-seen topics harder than the top of the window, so immediate repeats are avoided"),
+    (7, "length-adaptive diversity", "alpha_growth", 0.2,
+     "stiffen the diversity penalty as the session lengthens so long sessions cannot collapse"),
+    (8, "recency-boosted diversity (joint retune)", None, {"alpha": 0.5, "alpha_recency": 0.85},
+     "slightly stronger base diversity plus mild recency weighting remove near-term repeats"),
 ]
 NEUTRAL = {"gamma": 0.0, "alpha": 0.0, "eta": 0.0, "beta": 0.0, "epsilon": 0.0,
-           "decay": 0.8, "window_m": 5.0}
+           "decay": 0.8, "window_m": 5.0, "alpha_recency": 1.0, "alpha_growth": 0.0}
 # Guardrail direction: +1 = higher is better, -1 = lower is better.
 GUARDRAIL_DIR = {"cat_entropy_bits": 1, "catalog_coverage": 1,
                  "cold_impression_share": 1, "repeat_exposure_rate": -1}
@@ -85,7 +91,7 @@ def main() -> int:
 
     rows, new_iwe, new_stats = [], base_iwe, base_stats
     for gen, component, knob, value, hypothesis in GENERATIONS:
-        knobs = {**accepted, knob: value}
+        knobs = {**accepted, **(value if isinstance(value, dict) else {knob: value})}
         st = run_composer(cfg, knobs, scorer, n_bots, n_days, seed)
         iwe = np.asarray(st["iwe_per_bot"], float)
         ci = paired_bootstrap(iwe, new_iwe, n_boot, seed)
@@ -97,12 +103,14 @@ def main() -> int:
             accepted = knobs
             new_iwe, new_stats = iwe, st
         rows.append({
-            "generation": gen, "component": component, "knob": knob, "value": value,
+            "generation": gen, "component": component,
+            "knob": knob if knob else sorted(value), "value": value,
             "hypothesis": hypothesis, "iwe": float(iwe.mean()),
             "delta_vs_accepted": float(ci["mean_diff"]),
             "ci": [float(ci["lo"]), float(ci["hi"])], "guardrails": gr,
             "kept": keep, "verdict": verdict})
-        print(f"[gen{gen}] {component:<20} {knob}={value:<5} iwe={iwe.mean():.3f} "
+        setting = f"{knob}={value}" if knob else f"{value}"
+        print(f"[gen{gen}] {component:<20} {setting:<24} iwe={iwe.mean():.3f} "
               f"d={ci['mean_diff']:+.3f} [{ci['lo']:+.3f},{ci['hi']:+.3f}] "
               f"gr={'ok' if gr['pass'] else 'BAD'} -> {verdict}")
 

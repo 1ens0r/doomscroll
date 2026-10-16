@@ -22,7 +22,7 @@ COMPOSER_POLICIES = ("taste_composer", "evolved", "oracle")
 
 
 def run_policy(world: World, policy: str, scorer: TasteScorer | None = None,
-               collect_metrics: bool = True, collector=None, log=print) -> dict:
+               collect_metrics: bool = True, collector=None, log=print, trace=None) -> dict:
     cfg = world.cfg
     if scorer is not None:
         scorer.weights = cfg["policy"]["score_weights"]
@@ -47,7 +47,7 @@ def run_policy(world: World, policy: str, scorer: TasteScorer | None = None,
             if len(sess_bots) == 0:
                 continue
             _run_wave(world, fs, resp, met, policy, scorer, sess_bots, d, w, cap, cold_max,
-                      collect_metrics, collector)
+                      collect_metrics, collector, trace)
         sat, skip, newf, has = met.day_stats()
         sat = np.where(has, sat, float(cfg["return_model"]["satisfaction_baseline"]))
         prob = return_prob(sat, newf, skip, cfg["return_model"])
@@ -65,7 +65,7 @@ def run_policy(world: World, policy: str, scorer: TasteScorer | None = None,
 
 
 def _run_wave(world, fs, resp, met, policy, scorer, sess_bots, d, w, cap, cold_max,
-              collect_metrics, collector=None) -> None:
+              collect_metrics, collector=None, trace=None) -> None:
     cfg = world.cfg
     bots, cat = world.bots, world.catalog
     n_sess = len(sess_bots)
@@ -113,6 +113,14 @@ def _run_wave(world, fs, resp, met, policy, scorer, sess_bots, d, w, cap, cold_m
         if collector is not None:
             x, ccat = fs.pair_features(b, items, ts[act])
             collector(x, ccat, out, b)
+        if trace is not None:
+            for k in range(len(act)):
+                trace.append({"day": int(d), "wave": int(w), "step": int(i),
+                              "bot": int(b[k]), "item": int(items[k]), "cat": int(cats[k]),
+                              "tier": int(out["tier"][k]), "click": int(out["click"][k]),
+                              "like": int(out["like"][k]), "follow": int(out["follow"][k]),
+                              "forward": int(out["forward"][k]), "watch": float(out["watch"][k]),
+                              "repeat": bool(prior_n[k] > 0)})
         if collect_metrics:
             cold = fs.item_n[items] <= cold_max
             met.step(b, items, cats, out, prior_n, cold, sess_hour[act])
@@ -135,8 +143,8 @@ def _run_wave(world, fs, resp, met, policy, scorer, sess_bots, d, w, cap, cold_m
 
 def simulate(policy: str, cfg: dict, seed: int, scorer: TasteScorer | None = None,
              n_bots: int | None = None, n_days: int | None = None,
-             collect_metrics: bool = True, collector=None, log=print) -> dict:
+             collect_metrics: bool = True, collector=None, log=print, trace=None) -> dict:
     world = build_world(cfg, seed, n_bots=n_bots, n_days=n_days)
     world.cfg = {**cfg, "policy": effective_policy(cfg["policy"], policy)}
     return run_policy(world, policy, scorer, collect_metrics=collect_metrics,
-                      collector=collector, log=log)
+                      collector=collector, log=log, trace=trace)
