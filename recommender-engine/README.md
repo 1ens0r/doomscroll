@@ -41,7 +41,8 @@ Every adjacent rung's 95% CI excludes zero → **ladder PASS**. The `Compose` st
 +13.4 IWE/bot over `taste`, and the Phase-4 **(1+λ) evolution** over composer + score weights +
 retrieval mix adds **+11.3** more, while *improving* every guardrail (catalog coverage 75→82%,
 category entropy 3.35→3.65 bits, repeat-exposure 0.57→0.52%). Details in `reports/phase2.md`,
-`reports/phase3.md` and `reports/phase4.md`.
+`reports/phase3.md` and `reports/phase4.md`; the visual version is
+[`../reports/figures/01_ladder.png`](../reports/figures/01_ladder.png), rendered by `feed/plotting.py`.
 
 ## What makes it credible
 

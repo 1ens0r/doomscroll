@@ -5,7 +5,20 @@ calibrated behaviour simulator → policy ladder → staged **Compose** re-ranke
 Every policy claim is backed by a paired per-bot bootstrap CI, a guardrail panel, and a reproducible
 negative result. This file tracks what is **built** vs **left**.
 
-_Last updated: Phase 4 complete. All of Phases 0–4 committed and pushed; Phase 5 (ship polish) remains._
+_Last updated: Phase 5 complete. All of Phases 0–5 committed; nothing left on the plan._
+
+## The whole project in ten lines
+
+1. KuaiSAR-v2 19.62M clean events → 13.07M k-core rows; 43 leakage-free as-of features, strictly temporal splits.
+2. Only ~5% of events carry high intent → rank on a graded `label_tier`, never on binary clicks.
+3. Activity Gini 0.63 (top 1% = 12% of events) → every input user-normalized; personalization is the thesis.
+4. Phase 1: TasteNet (32k params), graded NDCG@10 0.496 val / 0.519 test, beats every hand baseline (LightGBM ceiling bounded).
+5. Phase 2: 10k-bot lockstep behavior sim on shared random numbers; calibration 7/12 with the 5 misses documented; parity gate 13/13.
+6. Phase 3: Compose kept α-diversity (+4.45) + η-session-affinity (+8.98); REJECTED γ / β / ε with measured costs → 138.27 IWE.
+7. Phase 4: (1+λ)-ES over 16 knobs, guardrail-penalised, TRAIN→VAL→TEST-once: +13.53 [+12.10, +14.92] on TEST.
+8. Ladder: random 61.86 → evolved 149.54 → oracle 213.10 IWE/bot; 0.58 of the personalized gap closed, every adjacent CI separated.
+9. IWE rose because personalization paid, not exposure gaming: coverage 75→82%, cat-entropy 3.35→3.65 bits, repeat 0.57→0.52%.
+10. Claims stay relative by construction: calibrated hand-designed sim, paired per-bot bootstraps, negative results kept with numbers.
 
 ## At a glance
 
@@ -16,7 +29,7 @@ _Last updated: Phase 4 complete. All of Phases 0–4 committed and pushed; Phase
 | 2 | World + swarm + calibration + Learn | ✅ DONE (`1e7660f`, `e2bf316`) | Ladder PASS; parity 13/13; calib 7/12 |
 | 3 | Composer generations | ✅ DONE (`e2bf316`) | `taste_composer` 138.27 (gap-closed 0.51) |
 | 4 | Evolution loop | ✅ DONE (`2fe4565`) | `evolved` 149.54 (gap-closed 0.58) |
-| 5 | Ship polish (README, figures, blog) | 🔲 NOT STARTED | — |
+| 5 | Ship polish (figures, README, blog notes) | ✅ DONE (this commit) | 5 headline figures; README Mini-Feed; BLOG_NOTES.md |
 
 **Current best ladder (10,000 bots × 7 days, seed 42, calibrated, 2,000 bootstraps):**
 
@@ -110,22 +123,28 @@ One-time `raw → artifacts/` with column selection + chunked IO.
 
 **Left:** nothing.
 
-## Phase 5 — Ship polish  🔲 REMAINING
+## Phase 5 — Ship polish  ✅
 
-Not started. Planned deliverables (from the working plan):
+**Built:** `feed/plotting.py` (figure module, palette/dpi from `swarm.yaml:figures`, renders from
+the committed artifacts only — no sim re-runs), five headline figures in `reports/figures/`,
+root `README.md` **"Mini-Feed"** section, `reports/BLOG_NOTES.md`, the ten-line summary above.
 
-- [ ] Root `README.md` section **"Mini-Feed"**: one-line hook + mermaid
-      **Find → Rank → Compose → Learn** + THE LADDER chart.
-- [ ] Ladder chart: random → popularity → personal → taste → composer → evolved → oracle, y = %
-      oracle gap closed, with CIs → `reports/figures/*.png` (matplotlib, palette in
-      `swarm.yaml:figures`).
-- [ ] Generations timeline, calibration table, cohort heatmap, session-survival curve figures.
-- [ ] 3-command quickstart (`run_offline.py`, `run_swarm.py`, `run_evolve.py`) in root README.
-- [ ] "What didn't work" + limitations (hand-designed sim calibrated to marginals only; relative
-      claims only) section.
-- [ ] `reports/BLOG_NOTES.md`: 10 story beats, each with real numbers.
-- [ ] `feed/plotting.py` figure module; (tests already exceed the 5-test target — **21 pass**).
-- [ ] Final ≤10-line summary of the whole project.
+- `01_ladder.png` — THE LADDER: % oracle gap closed per policy with CIs propagated from the
+  adjacent paired-bootstrap diffs (quadrature); bold gap %, italic IWE/bot.
+- `02_generations.png` — composer generations with KEEP/REJECT verdicts and the accepted-IWE
+  trajectory (124.77 → 129.23 → 138.21).
+- `03_calibration.png` — 12 targets sorted by |rel err| with the 15% band; 7 PASS / 5 structural
+  misses.
+- `04_cohorts.png` — per-cohort gap-closed heatmap (A=activity tercile × B=breadth tercile);
+  personalization headroom concentrates in heavy users (A2_B0 61% → 76% under `evolved`).
+- `05_retention.png` — return curves, D7: random 45.9 → evolved 56.9 → oracle 67.1%.
+- Root README: one-line hook + mermaid **Find → Rank → Compose → Learn** + THE LADDER chart+
+  table, 3-command quickstart (`run_offline.py`, `run_swarm.py`, `run_evolve.py`),
+  "What didn't work" (γ −0.01, β −1.04, ε −2.34 + guardrail trip, 5 calibration misses) and the
+  relative-claims honesty clause; stale Roadmap/Structure/Status sections updated.
+- `reports/BLOG_NOTES.md`: 10 story beats, each with real numbers + honesty beats appendix.
+
+**Left:** nothing.
 
 ---
 
@@ -156,10 +175,11 @@ recommender-engine/
   run_generations.py   p3  composer generations
   feed/evolve.py       p4  (1+lambda)-ES mechanics
   run_evolve.py        p4  evolution entry
-  feed/plotting.py     p5  figures                [TODO]
+  feed/plotting.py     p5  the five headline figures
   tests/               p1-p4  21 fast tests
   config/{policy,swarm,policy_evolved}.yaml
   ASSUMPTIONS.md       every modelling decision (A0-A21)
+reports/              phase1-4 write-ups, calibration, GENERATIONS, BLOG_NOTES, figures/
 ```
 
 ## Run / reproduce
@@ -172,6 +192,7 @@ $P run_offline.py --fast        # offline TasteNet smoke
 $P run_swarm.py                 # policy ladder incl. evolved (~130 s)
 $P run_generations.py           # composer generations (~209 s)
 $P run_evolve.py                # (1+lambda)-ES (~335 s) -> config/policy_evolved.yaml
+$P -m feed.plotting             # the five headline figures -> ../reports/figures/
 ```
 
 ## Known limitations / honest notes

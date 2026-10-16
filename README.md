@@ -114,6 +114,73 @@ Label-tier mix is stable → no target drift. User cold-start is trivial; **item
 
 ---
 
+## Mini-Feed — the engine that ranks the feed
+
+**One line:** a calibrated 10,000-bot user simulator plus a **Find → Rank → Compose → Learn**
+serving stack, evolved to **58% of the personalized-oracle gap** — every rung verified by a paired
+per-bot bootstrap, every rejection recorded with its measured cost.
+
+```mermaid
+graph LR
+    raw["raw 19.66M events<br/>KuaiSAR-v2"] --> kc["k-core 5/3<br/>13.07M rows · 43 features"]
+    kc --> world["World<br/>10,000 bots × 7 days<br/>hidden appeal + taste"]
+    world --> find["Find<br/>150-candidate pool"]
+    find --> rank["Rank<br/>TasteNet · 32k params"]
+    rank --> compose["Compose<br/>α diversity · η session affinity"]
+    compose --> respond["Respond<br/>click · watch · like · follow"]
+    respond -->|"session logs"| learn["Learn<br/>sim-native ranker"]
+    learn --> rank
+    respond -->|"features + fatigue"| find
+```
+
+The same 10,000 bots, schedules and random draws are replayed per policy (common random numbers),
+so the ladder is a paired experiment, not a zoo of sim runs.
+
+![the ladder](reports/figures/01_ladder.png)
+
+| policy | IWE / bot | oracle gap closed | promotion (95% CI) |
+|---|---|---|---|
+| random | 61.86 | 0 | baseline |
+| popularity | 77.87 | 0.11 | +16.0 [+15.3, +16.7] |
+| personal_affinity | 93.64 | 0.21 | +15.8 [+14.1, +17.4] |
+| taste (learned ranker) | 120.28 | 0.39 | +26.6 [+24.2, +29.3] |
+| taste_composer | 138.27 | 0.51 | +18.0 [+16.6, +19.4] |
+| **evolved (ES over 16 knobs)** | **149.54** | **0.58** | **+11.3 [+9.9, +12.7]** |
+| oracle | 213.10 | 1.00 | greedy ceiling |
+
+Engagement never bought its keep by collapsing diversity: coverage 75 → 82%, category entropy
+3.35 → 3.65 bits, repeat-exposure *down* 0.57 → 0.52%. More figures:
+[`reports/figures/`](reports/figures/) — generations `02`, calibration `03`, cohort headroom `04`,
+return curves `05`.
+
+### Three-command quickstart
+
+```bash
+cd recommender-engine
+~/miniconda3/envs/picograd/bin/python run_offline.py --fast   # offline TasteNet + graded NDCG
+~/miniconda3/envs/picograd/bin/python run_swarm.py            # the ladder (~2 min) incl. evolved
+~/miniconda3/envs/picograd/bin/python run_evolve.py           # (1+λ)-ES -> config/policy_evolved.yaml
+```
+
+Figures: `~/miniconda3/envs/picograd/bin/python -m feed.plotting`. Full run sheet and per-phase
+write-ups: [`recommender-engine/`](recommender-engine/), [`reports/`](reports/),
+[`status.md`](status.md).
+
+### What didn't work (kept on purpose)
+
+| idea | measured fate |
+|---|---|
+| seen-penalty γ | −0.01 [−0.66, +0.64] — redundant with the hard within-session dedup |
+| cold-item bonus β | −1.04 [−2.21, +0.13] — cold-start needs a real exploration story, not a bonus |
+| ε-greedy exploration | −2.34 [−3.00, −1.67] and repeat-exposure guardrail +21% worse |
+| hour-trough / repeat ×2–×3 calibration | structural model-form limits, documented in [`reports/calibration.md`](reports/calibration.md) |
+
+**Honesty clause:** the simulator is hand-designed and calibrated to marginals only (7/12); absolute
+IWE is not a claim about real users — all results are **relative**, under stated assumptions, with
+guardrails and CIs attached.
+
+---
+
 ## What we built from it
 
 **Pipeline:** `01_load_and_clean` → `02_preprocess_and_features` → `03_eda`. Strict order. Raw data git-ignored, artefacts in `data/`.
@@ -170,14 +237,19 @@ doomscroll/
     02_preprocess_and_features.ipynb <- tiers, splits, 43 features
     03_eda.ipynb                     <- behavioural analysis, all figures
     figures/                         <- 22 PNGs, embedded above + linked
-  recommender-engine/                <- rankers + eval, consumes processed features
-  data/raw|interim|processed          <- ignored, see Reproduce
+  recommender-engine/                <- simulator + Find→Rank→Compose→Learn engine (Phases 0–4)
+    feed/                            <- world, swarm, policies, composer, evolve, plotting
+    artifacts/  models/  tests/  config/
+  reports/                           <- phase write-ups + figures/ (the 5 headline PNGs)
+  data/raw|interim|processed         <- ignored, see Reproduce
+  status.md                          <- phase-by-phase build log, done vs left
 ```
 
 ## Roadmap
 
-- EDA: per-category retention curves · creator concentration · session-phase (opening vs continuation) rank analysis · dwell/skip decomposition · diurnal preference shift · query→category transfer matrix
-- Engine: popularity + personalised-popularity + equal-weight baselines → intent-aware ranker on `label_tier` with decayed `uc_*` vectors → cold-start fallback + exploration → NDCG@k (graded) + coverage/diversity/novelty
+- Shipped: EDA (22 figures) + the full engine pipeline Phases 0–5 — see [`status.md`](status.md).
+- Next: a real cold-start P0 (the ε/β story needs an actual exploration process, not a bonus) ·
+  EDA extensions: per-category retention curves · creator concentration · query→category transfer.
 
 ## Limitations
 
@@ -191,4 +263,4 @@ doomscroll/
 
 ## License & provenance
 
-MIT — see `LICENSE`. Data: KuaiSAR-v2, research use, never committed. Notebooks are source of truth; figures are derived artefacts. Status: EDA complete, extensions planned, `recommender-engine/` next.
+MIT — see `LICENSE`. Data: KuaiSAR-v2, research use, never committed. Notebooks are source of truth for the data layer; the engine is code-first (`feed/` + configs + tests). Status: **EDA complete · engine Phases 0–4 shipped · Phase 5 (ship polish) complete — see [`status.md`](status.md)**.
