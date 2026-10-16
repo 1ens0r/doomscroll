@@ -5,7 +5,7 @@ python_threads: 8
 paths:
   artifacts: artifacts
   models: models
-  reports: ../reports
+  notes: ../notes
 
 model:
   dropout: 0.1
@@ -55,7 +55,7 @@ retrieval:
 
 # Accepted composer knobs from Phase 3 (run_generations.py); only components that earned their
 # keep survive. gamma=0 because within-session dedup already handles repeats; beta/epsilon were
-# rejected on IWE (see reports/GENERATIONS.md).
+# rejected on IWE (see notes/GENERATIONS.md).
 composer:
   gamma: 0.0
   alpha: 0.4

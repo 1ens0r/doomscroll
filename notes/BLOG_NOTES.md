@@ -2,8 +2,8 @@
 
 Ten beats for the write-up. Each carries its own real numbers straight from the committed
 artifacts; the honest-claims rules (§ "Honesty beats") apply to every beat. Companion material:
-`reports/phase1–4.md`, `reports/calibration.md`, `reports/GENERATIONS.md`,
-`reports/figures/*.png`, `status.md`.
+`notes/phase1–4.md`, `notes/calibration.md`, `notes/GENERATIONS.md`,
+`notes/figures/*.png`, `status.md`.
 
 ---
 
@@ -34,7 +34,7 @@ Median 223 events/user, Gini **0.63**: the top **1%** of users generate **12.0%*
 the top 10% take **47.9%**. Global estimators collapse here; every model input in the engine is
 user-normalized, and the simulator stratifies real users into activity terciles.
 
-*Figure: `eda/figures/03_user_activity.png`; cohort payoff in `reports/figures/04_cohorts.png`.*
+*Figure: `eda/figures/03_user_activity.png`; cohort payoff in `notes/figures/04_cohorts.png`.*
 
 ## Beat 4 — Exposure ≠ quality: popularity is a coverage hack
 
@@ -43,7 +43,7 @@ but log-exposure vs engagement-rate correlates at only **0.128**. The ladder con
 simulation: `popularity` buys only **+16.0 IWE** (+10.6% of the oracle gap) over random, and its
 catalog coverage collapses to **5.9%** with entropy 4.08 bits.
 
-*Figure: `eda/figures/03_item_popularity.png`; ladder in `reports/figures/01_ladder.png`.*
+*Figure: `eda/figures/03_item_popularity.png`; ladder in `notes/figures/01_ladder.png`.*
 
 ## Beat 5 — Search is the cheat code for feed ranking
 
@@ -63,7 +63,7 @@ sessions, same draws. Policies scored this way are paired experiments — the la
 `random 61.86 → popularity 77.87 → personal_affinity 93.64 → taste 120.28 → taste_composer 138.27
 → evolved 149.54 → oracle 213.10`, and **every adjacent rung's 95% CI excludes zero**.
 
-*Figure: `reports/figures/01_ladder.png`; simulator: `feed/swarm.py`.*
+*Figure: `notes/figures/01_ladder.png`; simulator: `feed/swarm.py`.*
 *Honesty: the sim is calibrated to marginals only, so absolute IWE is meaningless — relative
 claims under stated assumptions is the rule.*
 
@@ -84,10 +84,10 @@ excluded), not hidden. The gate lives in `feed/parity.py` and runs on the ladder
 repeat ×1 7.8%, median session 12.5%). The **5 misses are structural, not tuning failures**: the
 hour *shape* the click-logit can't produce, the cross-day repeat ×2/×3 process the session model
 lacks, and the engagement-vs-length curve that is tautological in a leave model driven by
-engagement. Documented in `reports/calibration.md` — the fitter refuses to chase inconsistent
+engagement. Documented in `notes/calibration.md` — the fitter refuses to chase inconsistent
 targets, and passes 7.
 
-*Figure: `reports/figures/03_calibration.png`.*
+*Figure: `notes/figures/03_calibration.png`.*
 
 ## Beat 9 — Compose: cheap numpy beats a clever deep stage
 
@@ -99,7 +99,7 @@ penalty (−0.01, redundant), the cold bonus (−1.04) and ε-greedy (−2.34, w
 repeat guardrail +21%). `taste_composer` = **138.27**, 0.51 of the gap, dominating `taste` on
 every guardrail.
 
-*Figure: `reports/figures/02_generations.png`; log: `reports/GENERATIONS.md`.*
+*Figure: `notes/figures/02_generations.png`; log: `notes/GENERATIONS.md`.*
 
 ## Beat 10 — Evolution with a TEST discipline: +11.3 IWE, all guardrails better
 
@@ -112,8 +112,8 @@ seed-42 ladder `evolved` = **149.54** (gap-closed **0.58**), with coverage 75 �
 3.35 → 3.65 bits, repeat exposure *down* 0.57 → 0.52%. Guardrails got better because the loss
 surface rewarded personalization, not exposure gaming.
 
-*Figure: `reports/figures/01_ladder.png`, `reports/figures/04_cohorts.png`,
-`reports/figures/05_retention.png`; method: `reports/phase4.md`.*
+*Figure: `notes/figures/01_ladder.png`, `notes/figures/04_cohorts.png`,
+`notes/figures/05_retention.png`; method: `notes/phase4.md`.*
 
 ---
 

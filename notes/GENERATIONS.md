@@ -5,7 +5,7 @@ ranker does not see: what was already shown this session, how concentrated the r
 what the user has just engaged with. It is deliberately cheap (vectorised over a wave, no per-item
 model call) so it can sit in the hot path.
 
-See `reports/phase3.md` for the verdict summary; this file is the component reference.
+See `notes/phase3.md` for the verdict summary; this file is the component reference.
 
 ## Scoring form (`feed/composer.py`)
 

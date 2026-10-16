@@ -12,7 +12,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 ART = ROOT / "artifacts"
-FIG_DIR = ROOT.parent / "reports" / "figures"
+FIG_DIR = ROOT.parent / "notes" / "figures"
 SWARM_PATH = ROOT / "config" / "swarm.yaml"
 
 LADDER_ORDER = ["random", "popularity", "personal_affinity", "taste", "taste_composer",

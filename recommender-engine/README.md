@@ -40,9 +40,9 @@ the personalized **oracle** upper bound.
 Every adjacent rung's 95% CI excludes zero → **ladder PASS**. The `Compose` stage adds a further
 +13.4 IWE/bot over `taste`, and the Phase-4 **(1+λ) evolution** over composer + score weights +
 retrieval mix adds **+11.3** more, while *improving* every guardrail (catalog coverage 75→82%,
-category entropy 3.35→3.65 bits, repeat-exposure 0.57→0.52%). Details in `reports/phase2.md`,
-`reports/phase3.md` and `reports/phase4.md`; the visual version is
-[`../reports/figures/01_ladder.png`](../reports/figures/01_ladder.png), rendered by `feed/plotting.py`.
+category entropy 3.35→3.65 bits, repeat-exposure 0.57→0.52%). Details in `../notes/phase2.md`,
+`../notes/phase3.md` and `../notes/phase4.md`; the visual version is
+[`../notes/figures/01_ladder.png`](../notes/figures/01_ladder.png), rendered by `feed/plotting.py`.
 
 ## What makes it credible
 
@@ -70,4 +70,4 @@ $P run_evolve.py --fast           # smoke evolve loop (~10 s)
 $P run_evolve.py                  # full (1+lambda)-ES (~335 s) -> config/policy_evolved.yaml
 ```
 
-See `ASSUMPTIONS.md` for every modelling choice and `reports/` for per-phase write-ups.
+See `ASSUMPTIONS.md` for every modelling choice and `../notes/` for per-phase write-ups.

@@ -71,7 +71,7 @@ One-time `raw → artifacts/` with column selection + chunked IO.
   watch), `models/taste.pt` (TasteNet, 32,357 params).
 - Graded NDCG@10/@20 per user + user-bootstrap CIs + baselines; LightGBM ceiling as reference.
 - **Acceptance PASS** val & test: taste 0.4961/0.5186 > b3 0.4766/0.4976 > b2 0.4822/0.5013 >
-  b1 0.4293/0.4407; LightGBM ceiling 0.5213/0.5421. Report `reports/phase1.md`.
+  b1 0.4293/0.4407; LightGBM ceiling 0.5213/0.5421. Report `notes/phase1.md`.
 
 **Left:** nothing (offline model retained but not used in the sim ladder — see Phase 2).
 
@@ -83,13 +83,13 @@ One-time `raw → artifacts/` with column selection + chunked IO.
 
 - Lockstep Find→Rank→Compose→response→feedback simulator over one shared CRN world; user-conditional
   hidden appeal (the fix that gives personalization headroom, `ASSUMPTIONS A18`).
-- **Calibration 7/12** targets within 15% (5 structural misses documented in `reports/calibration.md`).
+- **Calibration 7/12** targets within 15% (5 structural misses documented in `notes/calibration.md`).
 - **Feature parity 13/13** replayable user-side features within 15% (gate PASS).
 - **Learn stage** (`run_learn.py`): train the ranker on simulator logs → `models/taste_sim.pt`
   (val NDCG@10 0.493, by-bot split, no oracle distillation).
 - **IWE ladder PASS**: random 61.86 < popularity 77.87 < personal_affinity 93.64 < taste 120.28 <
-  oracle 213.10. Report `reports/phase2.md`; postmortem of the pre-fix failure in
-  `reports/phase2_postmortem.md`.
+  oracle 213.10. Report `notes/phase2.md`; the pre-fix PARTIAL failure is preserved in its
+  History note.
 
 **Left:** nothing.
 
@@ -102,7 +102,7 @@ One-time `raw → artifacts/` with column selection + chunked IO.
   degrading >10%. **KEEP** diversity `alpha` (+4.45) and session adaptation `eta` (+8.98);
   **REJECT** seen-penalty (−0.01), cold bonus (−1.04), ε-exploration (−2.34, also tripped a guardrail).
 - `taste_composer` = **138.27** (gap-closed 0.51, +13.4 over neutral), improving every guardrail.
-  Reports `reports/phase3.md`, `reports/GENERATIONS.md`.
+  Reports `notes/phase3.md`, `notes/GENERATIONS.md`.
 
 **Left:** nothing.
 
@@ -119,15 +119,15 @@ One-time `raw → artifacts/` with column selection + chunked IO.
   (+13.53 [+12.10, +14.92]).
 - Seed-42 ladder `evolved` = **149.54** (gap-closed 0.58, +11.27 [+9.94, +12.74]); guardrails improve
   (coverage 78.5→81.7%, entropy 3.47→3.65 bits, repeat 0.54→0.52%). Evolve 335s, ladder 130s.
-- Report `reports/phase4.md`; `ASSUMPTIONS A21`.
+- Report `notes/phase4.md`; `ASSUMPTIONS A21`.
 
 **Left:** nothing.
 
 ## Phase 5 — Ship polish  ✅
 
 **Built:** `feed/plotting.py` (figure module, palette/dpi from `swarm.yaml:figures`, renders from
-the committed artifacts only — no sim re-runs), five headline figures in `reports/figures/`,
-root `README.md` **"Mini-Feed"** section, `reports/BLOG_NOTES.md`, the ten-line summary above.
+the committed artifacts only — no sim re-runs), five headline figures in `notes/figures/`,
+root `README.md` **"Mini-Feed"** section, `notes/BLOG_NOTES.md`, the ten-line summary above.
 
 - `01_ladder.png` — THE LADDER: % oracle gap closed per policy with CIs propagated from the
   adjacent paired-bootstrap diffs (quadrature); bold gap %, italic IWE/bot.
@@ -142,7 +142,7 @@ root `README.md` **"Mini-Feed"** section, `reports/BLOG_NOTES.md`, the ten-line 
   table, 3-command quickstart (`run_offline.py`, `run_swarm.py`, `run_evolve.py`),
   "What didn't work" (γ −0.01, β −1.04, ε −2.34 + guardrail trip, 5 calibration misses) and the
   relative-claims honesty clause; stale Roadmap/Structure/Status sections updated.
-- `reports/BLOG_NOTES.md`: 10 story beats, each with real numbers + honesty beats appendix.
+- `notes/BLOG_NOTES.md`: 10 story beats, each with real numbers + honesty beats appendix.
 
 **Left:** nothing.
 
@@ -179,7 +179,7 @@ recommender-engine/
   tests/               p1-p4  21 fast tests
   config/{policy,swarm,policy_evolved}.yaml
   ASSUMPTIONS.md       every modelling decision (A0-A21)
-reports/              phase1-4 write-ups, calibration, GENERATIONS, BLOG_NOTES, figures/
+notes/              phase1-4 write-ups, calibration, GENERATIONS, BLOG_NOTES, figures/
 ```
 
 ## Run / reproduce
@@ -192,7 +192,7 @@ $P run_offline.py --fast        # offline TasteNet smoke
 $P run_swarm.py                 # policy ladder incl. evolved (~130 s)
 $P run_generations.py           # composer generations (~209 s)
 $P run_evolve.py                # (1+lambda)-ES (~335 s) -> config/policy_evolved.yaml
-$P -m feed.plotting             # the five headline figures -> ../reports/figures/
+$P -m feed.plotting             # the five headline figures -> ../notes/figures/
 ```
 
 ## Known limitations / honest notes

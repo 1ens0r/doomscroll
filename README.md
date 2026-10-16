@@ -136,7 +136,7 @@ graph LR
 The same 10,000 bots, schedules and random draws are replayed per policy (common random numbers),
 so the ladder is a paired experiment, not a zoo of sim runs.
 
-![the ladder](reports/figures/01_ladder.png)
+![the ladder](notes/figures/01_ladder.png)
 
 | policy | IWE / bot | oracle gap closed | promotion (95% CI) |
 |---|---|---|---|
@@ -150,7 +150,7 @@ so the ladder is a paired experiment, not a zoo of sim runs.
 
 Engagement never bought its keep by collapsing diversity: coverage 75 → 82%, category entropy
 3.35 → 3.65 bits, repeat-exposure *down* 0.57 → 0.52%. More figures:
-[`reports/figures/`](reports/figures/) — generations `02`, calibration `03`, cohort headroom `04`,
+[`notes/figures/`](notes/figures/) — generations `02`, calibration `03`, cohort headroom `04`,
 return curves `05`.
 
 ### Three-command quickstart
@@ -163,7 +163,7 @@ cd recommender-engine
 ```
 
 Figures: `~/miniconda3/envs/picograd/bin/python -m feed.plotting`. Full run sheet and per-phase
-write-ups: [`recommender-engine/`](recommender-engine/), [`reports/`](reports/),
+write-ups: [`recommender-engine/`](recommender-engine/), [`notes/`](notes/),
 [`status.md`](status.md).
 
 ### What didn't work (kept on purpose)
@@ -173,7 +173,7 @@ write-ups: [`recommender-engine/`](recommender-engine/), [`reports/`](reports/),
 | seen-penalty γ | −0.01 [−0.66, +0.64] — redundant with the hard within-session dedup |
 | cold-item bonus β | −1.04 [−2.21, +0.13] — cold-start needs a real exploration story, not a bonus |
 | ε-greedy exploration | −2.34 [−3.00, −1.67] and repeat-exposure guardrail +21% worse |
-| hour-trough / repeat ×2–×3 calibration | structural model-form limits, documented in [`reports/calibration.md`](reports/calibration.md) |
+| hour-trough / repeat ×2–×3 calibration | structural model-form limits, documented in [`notes/calibration.md`](notes/calibration.md) |
 
 **Honesty clause:** the simulator is hand-designed and calibrated to marginals only (7/12); absolute
 IWE is not a claim about real users — all results are **relative**, under stated assumptions, with
@@ -240,7 +240,7 @@ doomscroll/
   recommender-engine/                <- simulator + Find→Rank→Compose→Learn engine (Phases 0–4)
     feed/                            <- world, swarm, policies, composer, evolve, plotting
     artifacts/  models/  tests/  config/
-  reports/                           <- phase write-ups + figures/ (the 5 headline PNGs)
+  notes/                           <- phase write-ups + figures/ (the 5 headline PNGs)
   data/raw|interim|processed         <- ignored, see Reproduce
   status.md                          <- phase-by-phase build log, done vs left
 ```

@@ -9,8 +9,8 @@ policy can extend (Phase 3).
 > History: the first Phase-2 run was **PARTIAL** — popularity was ~98% of the oracle and neither
 > heuristic nor learned personalization beat it, because engagement was dominated by a *global* item
 > appeal. That diagnosis drove a deliberate world fix (user-conditional appeal + a Learn stage);
-> this report describes the fixed world. The original failure story is kept in
-> `reports/phase2_postmortem.md`.
+> this report describes the fixed world, and the failure diagnosis remains at the base of this
+> note and in the Phase-2 commit history (commit `1e7660f`).
 
 ## What was built
 
@@ -120,7 +120,7 @@ The 5 misses are structural, not tuning failures:
 | eng 1-item sessions | 0.143 | 0.191 | sim leave model is geometric, not a point mass at 1 |
 | eng 31–100 sessions | 1.00 | 0.50 | sim has no "binge then stop" tail cap |
 
-These are model-form limits (documented in `reports/calibration.md` and `ASSUMPTIONS.md`), chosen
+These are model-form limits (documented in `notes/calibration.md` and `ASSUMPTIONS.md`), chosen
 deliberately over over-fitting five mutually-inconsistent targets.
 
 ## Cohorts and guardrails (full run)

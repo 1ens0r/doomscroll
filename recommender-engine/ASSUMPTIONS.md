@@ -98,7 +98,7 @@ than guessed around. Column names below were printed from the real CSV headers.
   2,000-user sample, 74 on the k-core modelled users (heavy-user selection). The k-core users
   are ~1090 events/user, so long sessions are expected in the modelled population.
 - Decision: `patience_median = 8` stays the calibration target (spec: "never adjust targets"), and
-  `reports/calibration.md` reports sim vs target AND sim vs measured-on-modelled-users so the gap is
+  `notes/calibration.md` reports sim vs target AND sim vs measured-on-modelled-users so the gap is
   transparent. Bots' per-session patience base is drawn lognormal(median 8) per library spec.
 
 ## A13. Phase 1 baselines adapted to the measured within-user signal
@@ -116,7 +116,7 @@ than guessed around. Column names below were printed from the real CSV headers.
   are still evaluated every run and logged as `diag_exposure_pop` / `diag_decay_share`.
 - Acceptance check implemented as: paired user-bootstrap 95% CI of the NDCG@10 difference must
   exclude 0 for taste>b3, b3>b2, b2>b1, on feed scope, in both val and test. In `--fast` the
-  result is printed but not enforced (smoke mode). Both full splits pass (`reports/phase1.md`).
+  result is printed but not enforced (smoke mode). Both full splits pass (`notes/phase1.md`).
 
 ## A14. Phase 1 model/training choices
 - TasteNet implements the plan architecture verbatim; final size is **32,357 params** (plan
@@ -177,7 +177,7 @@ than guessed around. Column names below were printed from the real CSV headers.
   CI-separated margin. The Phase-1 offline model is retained but not used in the ladder.
 
 ## A17. Calibration targets partially unmet (by construction)
-- 7/12 targets within 15% (`artifacts/calibration_report.json`, `reports/calibration.md`). The five
+- 7/12 targets within 15% (`artifacts/calibration_report.json`, `notes/calibration.md`). The five
   misses (hour trough, repeat ×2/×3, engagement of 1-item and 31–100-item sessions) are structural:
   the artifacts contain no deep 3–4h engagement crater; real repeat multipliers decay sub-linearly
   across days while the model uses one per-session penalty; and session length is coupled to
@@ -215,7 +215,7 @@ than guessed around. Column names below were printed from the real CSV headers.
 - Accepted set `{gamma=0, alpha=0.4, eta=0.5, beta=0, epsilon=0}` → `taste_composer` 138.27
   (gap-closed 0.51, +13.4 over neutral). `gamma` (redundant with the hard within-session ban),
   `beta` (cold bonus) and `epsilon` (exploration) were rejected with recorded negative deltas.
-  Full table: `reports/GENERATIONS.md`, `reports/phase3.md`.
+  Full table: `notes/GENERATIONS.md`, `notes/phase3.md`.
 
 ## A21. Evolution loop (Phase 4)
 - `feed/evolve.py` (mechanics) + `run_evolve.py` (entry): a (1+λ)-ES over **16** knobs from
@@ -235,4 +235,4 @@ than guessed around. Column names below were printed from the real CSV headers.
   `taste_composer`, CI [+9.94,+12.74]); TEST-protocol 150.03 vs 136.50 (+13.53 [+12.10,+14.92]).
   Best knobs → `config/policy_evolved.yaml`; the `run_swarm` ladder adds an `evolved` rung
   (`feed/policies.py:effective_policy` overlays the file onto the base policy). Reports:
-  `reports/phase4.md`, `reports/GENERATIONS.md`.
+  `notes/phase4.md`, `notes/GENERATIONS.md`.

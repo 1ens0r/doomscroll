@@ -6,7 +6,7 @@ Two of five components earned their keep; three were honestly rejected. The tune
 policy from `taste` = 120.28 to **`taste_composer` = 138.27** IWE/bot (gap-closed 0.39 → 0.51),
 +13.44 (+11.2%) over the neutral composer, all while improving every guardrail relative to `taste`.
 
-Full per-component table: `reports/GENERATIONS.md`; raw JSON: `artifacts/composer_generations.json`.
+Full per-component table: `notes/GENERATIONS.md`; raw JSON: `artifacts/composer_generations.json`.
 
 ## Method — additive generations
 

@@ -1,7 +1,7 @@
 """Intuition: Fit the swarm's free constants so the simulated marginals reproduce the real ones —
 one scalar at a time against its own target, on a small fast swarm, with every target left untouched.
 
-Writes artifacts/calibration.json (constants only) and reports/calibration.md (sim vs real table).
+Writes artifacts/calibration.json (constants only) and notes/calibration.md (sim vs real table).
 """
 from __future__ import annotations
 

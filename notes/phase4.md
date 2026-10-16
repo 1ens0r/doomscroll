@@ -7,7 +7,7 @@ coefficients, the five score weights and the four retrieval-mix counts — lifts
 On the disjoint protocol set (TRAIN seed 1 / VAL seed 2 / TEST seed 3) the winner is **150.03 vs
 136.50** for the shipped composer (+13.53 [+12.10, +14.92]). Every guardrail improves along the way.
 
-Full generation log: `reports/GENERATIONS.md` (Phase-4 section); raw numbers:
+Full generation log: `notes/GENERATIONS.md` (Phase-4 section); raw numbers:
 `artifacts/evolve_results.json`; winning knobs: `config/policy_evolved.yaml`.
 
 ## Method — (1+λ)-ES with a guardrail penalty

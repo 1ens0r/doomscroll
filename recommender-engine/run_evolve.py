@@ -1,6 +1,6 @@
 """Intuition: Phase-4 entry — evolve the policy knobs with a (1+lambda) ES against a small TRAIN
 swarm, select the winner on a held-out VAL swarm, and measure it exactly once on TEST. Writes the
-evolved knobs to `config/policy_evolved.yaml`, the generation log to `reports/GENERATIONS.md`, and
+evolved knobs to `config/policy_evolved.yaml`, the generation log to `notes/GENERATIONS.md`, and
 all numbers to `artifacts/evolve_results.json`.
 """
 from __future__ import annotations
@@ -21,7 +21,7 @@ from run_swarm import _clean, load_policy, seed_all
 
 ART = ROOT / "artifacts"
 EVOLVED_PATH = ROOT / "config" / "policy_evolved.yaml"
-GENERATIONS_MD = ROOT.parent / "reports" / "GENERATIONS.md"
+GENERATIONS_MD = ROOT.parent / "notes" / "GENERATIONS.md"
 EVOLVE_HEADER = "## Evolution log (Phase 4)"
 
 
