@@ -6,7 +6,7 @@ drift ≤0.3% but leaves peak val NDCG@10 unchanged, so comparisons are apples-t
 touched **once** per arm, after selection on validation.
 
 Seed 42, CPU, 8 torch threads. Headline artifacts: `notes/results/{improve,capacity,loss_ablation,
-composer,evolve,sim,loss_diagnostics}.json`.
+composer,evolve,sim,loss_diagnostics,train_wide_rank,train_wide_hybrid}.json`.
 
 ## A1/A2 — bigger network + ranking-aware objective
 
@@ -24,6 +24,12 @@ composer,evolve,sim,loss_diagnostics}.json`.
 The winner is selected on val with paired-bootstrap CIs; `within_ci = [wide_hybrid]`. Per-epoch
 history (winner): train loss `3.8762 → 2.8607`, val NDCG@10 `0.4931 → 0.5006`, val loss
 `2.5102 → 2.3972`; no early stop (improved every epoch). Full history in `notes/results/improve.json`.
+
+**Final long run (`run_train.py`).** Training the same `wide` network longer, with a pure
+`lambdarank` objective (the best ablation arm), moves validation NDCG@10 from the 6-epoch `0.5006`
+pilot to **0.5143** (best epoch 11 of a 22-epoch budget, early-stopped at 16) and test to **0.5332**;
+a paired bootstrap puts it **+0.0356 NDCG@10 over popularity** on test (95% CI [+0.0327, +0.0384]).
+This is the shipped `weights/wide_rank_offline.pt`; per-epoch history in `notes/results/train_wide_rank.json`.
 
 ### Capacity alone is neutral (`run_capacity.py`, full)
 

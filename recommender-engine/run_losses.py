@@ -24,7 +24,7 @@ from feed.train import compute_pos_weights, masked_head_loss
 
 POLICY_PATH = ROOT / "config" / "policy.yaml"
 RESULTS_DIR = ROOT.parent / "notes" / "results"
-FIG_DIR = ROOT.parent / "notes" / "figures"
+FIG_DIR = ROOT.parent / "eda" / "figures"
 
 # name -> dotted-path overrides applied to the base policy (one factor per L5 arm).
 ARMS: dict[str, dict] = {
@@ -234,7 +234,7 @@ def main() -> int:
         RESULTS_DIR.mkdir(parents=True, exist_ok=True)
         (RESULTS_DIR / "loss_diagnostics.json").write_text(json.dumps(diag, indent=1))
         try:
-            plot_diagnostics(diag, FIG_DIR / "06_loss_diagnostics.png")
+            plot_diagnostics(diag, FIG_DIR / "policy_06_loss_diagnostics.png")
             print(f"[diag] diagnostics + figure written")
         except Exception as exc:
             print(f"[diag] figure skipped: {exc}")

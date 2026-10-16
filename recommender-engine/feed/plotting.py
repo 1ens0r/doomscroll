@@ -12,7 +12,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 ART = ROOT / "artifacts"
-FIG_DIR = ROOT.parent / "notes" / "figures"
+FIG_DIR = ROOT.parent / "eda" / "figures"
 SWARM_PATH = ROOT / "config" / "swarm.yaml"
 
 LADDER_ORDER = ["random", "popularity", "personal_affinity", "taste", "taste_composer",
@@ -61,7 +61,7 @@ def _gap_cis() -> dict[str, float]:
     return out
 
 
-def ladder(policy_order: list[str] = LADDER_ORDER, out: str = "01_ladder.png") -> Path:
+def ladder(policy_order: list[str] = LADDER_ORDER, out: str = "policy_01_ladder.png") -> Path:
     """THE LADDER: % of the personalized-oracle gap closed, CIs from paired per-bot bootstraps."""
     import matplotlib.pyplot as plt
 
@@ -102,13 +102,14 @@ def ladder(policy_order: list[str] = LADDER_ORDER, out: str = "01_ladder.png") -
     return _save(fig, out, dpi)
 
 
-def generations(out: str = "02_generations.png") -> Path:
+def generations(out: str = "policy_02_generations.png") -> Path:
     """Composer generations: per-component ΔIWE with CIs, and the accepted-IWE trajectory."""
     palette, dpi = _fig_cfg()
     g = _art("composer_generations.json")
     gens = g["generations"]
     names = {"gamma": "seen-penalty\nγ", "alpha": "diversity\nα", "eta": "session\nadaptation η",
-             "beta": "cold\nbonus β", "epsilon": "epsilon\nexploration"}
+             "beta": "cold\nbonus β", "epsilon": "epsilon\nexploration",
+             "alpha_recency": "recency\ndiversity r", "alpha_growth": "length-adaptive\ndiversity g"}
     n = len(gens)
     delta = np.array([e["delta_vs_accepted"] for e in gens])
     lo = delta - np.array([e["ci"][0] for e in gens])
@@ -140,17 +141,22 @@ def generations(out: str = "02_generations.png") -> Path:
     ax2.set_ylim(115, 145)
     ax2.spines[["top"]].set_visible(False)
     ax2.legend(fontsize=8, loc="upper right", frameon=False)
-    ax.set_xticks(x, [names[e["knob"]] for e in gens], fontsize=8.6)
+    def _label(k):
+        ks = k if isinstance(k, list) else [k]
+        return " + ".join(names.get(x, str(x)).replace("\n", " ") for x in ks)
+
+    ax.set_xticks(x, [_label(e["knob"]) for e in gens], fontsize=8.0)
     ax.set_ylabel("ΔIWE vs accepted so far  (95% CI)", fontsize=9.5)
     ax.axhline(0, color="#999999", lw=0.8)
-    ax.set_title("Composer generations — keep only what pays (α +4.45 · η +8.98 kept;"
-                 " γ, β, ε rejected)", fontsize=10.5, pad=10)
+    kept = sum(1 for e in gens if e["kept"])
+    ax.set_title(f"Composer generations — keep only what pays ({kept} kept · "
+                 f"{n - kept} rejected by 95% CI)", fontsize=10.5, pad=10)
     _style(ax)
     fig.tight_layout()
     return _save(fig, out, dpi)
 
 
-def calibration(out: str = "03_calibration.png") -> Path:
+def calibration(out: str = "policy_03_calibration.png") -> Path:
     """Sim vs real marginals: relative error per target with the 15% acceptance band."""
     palette, dpi = _fig_cfg()
     rep = _art("calibration_report.json")["checks"]
@@ -181,7 +187,7 @@ def calibration(out: str = "03_calibration.png") -> Path:
     return _save(fig, out, dpi)
 
 
-def cohorts(policy_order: list[str] = LADDER_ORDER, out: str = "04_cohorts.png") -> Path:
+def cohorts(policy_order: list[str] = LADDER_ORDER, out: str = "policy_04_cohorts.png") -> Path:
     """Per-cohort oracle-gap-closed heatmap: personalization headroom concentrates in heavy users."""
     palette, dpi = _fig_cfg()
     sim = _art("sim_results.json")["cohorts"]
@@ -216,7 +222,7 @@ def cohorts(policy_order: list[str] = LADDER_ORDER, out: str = "04_cohorts.png")
     return _save(fig, out, dpi)
 
 
-def survival(policy_order: list[str] = LADDER_ORDER, out: str = "05_retention.png") -> Path:
+def survival(policy_order: list[str] = LADDER_ORDER, out: str = "policy_05_retention.png") -> Path:
     """Return curves: share of bots still active each simulated day, policy overlay."""
     palette, dpi = _fig_cfg()
     diag = _art("sim_results.json")["diagnostics"]

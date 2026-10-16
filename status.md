@@ -5,8 +5,10 @@ calibrated behaviour simulator → policy ladder → staged **Compose** re-ranke
 Every policy claim is backed by a paired per-bot bootstrap CI, a guardrail panel, and a reproducible
 negative result. This file tracks what is **built** vs **left**.
 
-_Last updated: Phase 6 + Phase A (revival plan). Phases 0–5 committed; Phase 6 audit and the Phase-A
-improvements (bigger network, ranking-aware loss, composer refresh, executed `demo.ipynb`) added._
+_Last updated: Phase 6 + Phase A + final pass. Phases 0–6 committed; Phase A (bigger network,
+ranking-aware loss, composer refresh) and the final pass (long training to val 0.5143, a
+presentation-first executed `demo.ipynb`, a plain-english README, and published weights in
+`weights/`; all figures consolidated under `eda/figures/`) added._
 
 ## The whole project in ten lines
 
@@ -33,6 +35,7 @@ improvements (bigger network, ranking-aware loss, composer refresh, executed `de
 | 5 | Ship polish (figures, README, blog notes) | ✅ DONE (`2fe4565`) | 5 headline figures; README Mini-Feed; BLOG_NOTES.md |
 | 6 | Baseline audit + reproduction | ✅ DONE | `notes/phase6.md`; fresh run == archived numbers |
 | A | Bigger net + ranking loss + composer refresh + `demo.ipynb` | ✅ DONE | `notes/phaseA.md`; val +0.0045 CI>0; evolved 151.53; executed notebook |
+| B | Final: long training, presentation notebook, README, published weights | ✅ DONE | `run_train.py` (wide + lambdarank) → val **0.5143** / test **0.5332**; `demo.ipynb`; `weights/`; all figs in `eda/figures/` |
 
 **Current best ladder (10,000 bots × 7 days, seed 42, calibrated, 2,000 bootstraps; Phase-A ranker):**
 
@@ -130,7 +133,7 @@ One-time `raw → artifacts/` with column selection + chunked IO.
 ## Phase 5 — Ship polish  ✅
 
 **Built:** `feed/plotting.py` (figure module, palette/dpi from `swarm.yaml:figures`, renders from
-the committed artifacts only — no sim re-runs), five headline figures in `notes/figures/`,
+the committed artifacts only — no sim re-runs), five headline figures in `eda/figures/`,
 root `README.md` **"Mini-Feed"** section, `notes/BLOG_NOTES.md`, the ten-line summary above.
 
 - `01_ladder.png` — THE LADDER: % oracle gap closed per policy with CIs propagated from the
@@ -213,12 +216,15 @@ recommender-engine/
   run_capacity.py      pA  network-capacity study
   run_losses.py        pA  loss ablation + diagnostics figure
   run_improve.py       pA  headline: baseline vs improved, val+test once
+  feed/taxonomy.py     pB  category id -> english name map
+  run_train.py         pB  final long run (wide + lambdarank) -> weights/ + train_*.json
   build_demo.py        pB  generates demo.ipynb
   weights/             pB  published small checkpoints (+ weights/README.md)
   tests/               p1-pB  35 fast tests
   config/{policy,swarm,policy_evolved}.yaml
   ASSUMPTIONS.md       every modelling decision (A0-A21)
-notes/                phase1-6 + phaseA write-ups, results/, figures/, GENERATIONS, BLOG_NOTES
+notes/                phase1-6 + phaseA write-ups, results/, GENERATIONS, BLOG_NOTES
+eda/figures/          all PNGs (22 EDA + 5 policy + loss diagnostics + training/sim)
 demo.ipynb            executed end-to-end research notebook (repo root)
 ```
 
@@ -234,7 +240,7 @@ $P run_learn.py --variant wide --loss hybrid           # sim-native ranker
 $P run_swarm.py                 # policy ladder incl. evolved (~130 s)
 $P run_generations.py           # composer generations (~440 s)
 $P run_evolve.py                # (1+lambda)-ES (~610 s) -> config/policy_evolved.yaml
-$P -m feed.plotting             # the five headline figures -> ../notes/figures/
+$P -m feed.plotting             # the five headline figures -> ../eda/figures/
 $P build_demo.py                # generate demo.ipynb, then nbconvert --execute it
 ```
 

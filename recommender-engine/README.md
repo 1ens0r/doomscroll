@@ -42,7 +42,7 @@ Every adjacent rung's 95% CI excludes zero → **ladder PASS**. The `Compose` st
 retrieval mix adds **+11.3** more, while *improving* every guardrail (catalog coverage 75→82%,
 category entropy 3.35→3.65 bits, repeat-exposure 0.57→0.52%). Details in `../notes/phase2.md`,
 `../notes/phase3.md` and `../notes/phase4.md`; the visual version is
-[`../notes/figures/01_ladder.png`](../notes/figures/01_ladder.png), rendered by `feed/plotting.py`.
+[`../eda/figures/policy_01_ladder.png`](../eda/figures/policy_01_ladder.png), rendered by `feed/plotting.py`.
 
 ## What makes it credible
 

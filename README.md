@@ -1,274 +1,407 @@
-# DOOMSCROLL
+# doomscroll
 
-> Behaviour-aware short-video recommendation. We model interaction intent, session dynamics, and retention drivers on KuaiSAR-v2 — then rank for what actually keeps people watching.
+> a small neural network that learns to rank a short-video feed, plus a simulator that checks whether
+> the feed is actually *good* — not just popular.
 
-**19.66M events · 25,877 users · 6.89M items · 19.1 days · 38 categories · 43 leakage-free features · strictly temporal splits**
+this repo takes ~19.7 million real user interactions from **kuaisar-v2**, turns them into clean,
+leak-free features, trains a compact cpu model (~123k parameters) to predict engagement, and then
+drops that model into a closed-loop user simulator to test whole feed policies. everything here runs
+on a laptop cpu, no gpu.
 
-Feed is 84.5% of volume. Search is 15.5%. Only **~5% of events carry high-intent signal**. Everything in this repo is built around that imbalance.
+**start here:** the end-to-end story lives in [`demo.ipynb`](demo.ipynb) — it explains every step in
+plain english and runs top to bottom. this readme is the written companion.
+
+---
+
+## the numbers at a glance
+
+| thing | value |
+|---|---|
+| data | 19.66m events · 25,877 users · 6.89m items · 19.1 days · 38 categories |
+| model | "wide" tasetnet, **122,773 parameters**, cpu, ~45 s/epoch |
+| best val ndcg@10 | **0.5143** (was 0.5006 in the first short pilot) |
+| test ndcg@10 | **0.5332** vs popularity 0.4976 → **+0.0356** (95% ci [+0.0327, +0.0384], excludes 0) |
+| objective | masked bce + a **lambdarank** ranking term |
+| policy ladder | evolves to **59% of the personalized-oracle gap**, every rung ci-checked |
+
+(mini glossary: **ndcg** is a ranking score from 0 to 1 — 0.5 is roughly random order, 1.0 is a
+perfect order. **tier** is the graded engagement label, 0 = scrolled past … 4 = strong signal.
+**cold start** = a video or user the model has never seen before.)
+
+---
+
+## the data
+
+the raw logs are impressions: *this user was shown this video at this time*. each row already carries
+engineered features and an engagement label. we split **by time**, so `val` happens after `train` and
+`test` after `val` — that's how you honestly test whether a model generalises to the future.
 
 ```text
-raw 19.66M (14.61M feed + 5.06M search) → cleaned 19.62M (99.75% kept, 48,257 exact dups dropped)
-→ modelled 13.07M after 5/3 k-core (66.6% events, ~100% users, 18.9% items)
-→ train 2.73M / val 1.51M / test 1.34M — temporal, no leakage
+raw 19.66m events  →  cleaned 19.62m (99.75% kept, 48,257 exact duplicates dropped)
+                   →  modelled after a 5/3 k-core filter (only users/items with enough history)
+                   →  train 2.61m / val 1.96m / test 1.96m   (strictly temporal, no leakage)
 ```
+
+| split | impressions | users | videos | search % | 
+|---|---|---|---|---|
+| train | 2,612,256 | 13,269 | 568,189 | 11.2% |
+| val   | 1,959,189 | — | — | ~11% |
+| test  | 1,959,194 | — | — | ~11% |
+
+why a k-core filter? because a user seen once and a video seen once carry almost no learnable signal.
+dropping them removes noise (and 81% of the long-tail items) so the model can focus on patterns that
+repeat.
 
 ---
 
-## The EDA in 30 seconds
+## what the data looks like (the eda)
 
-If you read nothing else, read these six plots. They dictate every modelling decision below.
+before modelling anything we looked hard at the data. every plot below lives in
+[`eda/figures/`](eda/figures/) — 22 committed pngs, all traceable to the notebooks in [`eda/`](eda/).
 
-### 1. Clicks are cheap. Intent is rare.
+### 1. clicks are cheap; real intent is rare
 
-![intent tier distribution](eda/figures/02_tier_distribution.png)
+the label is graded, not binary. most impressions are weak (a scroll-past) and only a small slice is
+strong (a like, follow or forward). that imbalance is the single most important fact about the data.
 
-Tier 0 (no engagement): **51.82% · 6.77M**. Tier 1 (click): **43.24% · 5.65M**. Tier 2 (search-click + long-view): **2.00% · 261K**. Tier 3 (like): **2.34% · 305K**. Tier 4 (follow/forward): **0.59% · 77K**.
+![tier distribution](eda/figures/02_tier_distribution.png)
 
-Weights: click 1.0 · long-view 2.0 · like 3.0 · forward 4.0 · follow 5.0 · hate −3.0 · search-click +2.0 bonus, min tier 2. Mean tier-4 score: **6.42**.
+- tier 0 (no engagement) **~48%**, tier 1 (a click) **~46%**, then it collapses: tier 2 ~3%, tier 3
+  ~2.5%, tier 4 **~0.6%**.
+- per-action rates are just as lopsided: click ~50%, like ~3%, follow ~0.4%, forward ~0.3%.
 
-**Takeaway:** binary "positive" labelling dumps 95% noise + 5% gold into one bucket. We rank on graded `label_tier` with tier-derived NDCG gains. `label_pos` stays only as an equal-weight baseline.
+so if you label everything "positive vs negative", you dump 95% noise and 5% gold into one bucket. we
+instead rank on the **tier** with graded gains, and the metric (ndcg) rewards putting the strong
+engagements at the top.
 
-Funnel behind it — feed click **53.79%** → like **3.00%** → follow **0.41%** → forward **0.31%**. Conditional on click: like **~4.0%**, follow **~0.55%**, forward **~0.42%**. Likes barely co-occur with follows/forwards — they're distinct intents, not a single scale. Full breakdown: `03_action_rates.png`, `03_action_cooccurrence.png`, `03_tier_by_source.png`.
+![action rates](eda/figures/03_action_rates.png)
+![action co-occurrence](eda/figures/03_action_cooccurrence.png)
 
-### 2. No single feature works. Habit + affinity does.
+likes barely co-occur with follows/forwards — they're different intents, not one scale.
 
-![univariate predictive performance](eda/figures/03_feature_viability.png)
+### 2. no single feature wins; habit + affinity does
 
-Top-20 single-feature ROC-AUC, bars from 0.5 = chance. Left: per-feature. Right: signal strength `|AUC − 0.5|` by group.
+we checked how predictive each feature is on its own. nothing is a silver bullet, but *how this user
+usually behaves* and *how much they liked this category before* carry the most signal.
 
-- Any engagement: `u_pos_rate` **0.683** · `u_rate_click` **0.682** · `u_mean_score` **0.661** · `u_play_ratio` **0.627**
-- Strong engagement: `u_rate_like` **0.832** · `u_mean_score` **0.784** · `u_pos_rate` **0.626**
-- Inverse signal: `ctx_is_search` **0.407 / 0.437** (search impressions click less often but mean higher intent — hence the tier bonus, not a penalty)
-- Affinity: `uc_lift` **0.567 / 0.558**, `uc_decay_share` monotone across deciles
+![feature viability](eda/figures/03_feature_viability.png)
 
-Group ranking: **user > user-category > item > context > user-item > cold**. No lone winner → 43-feature set combining habit, affinity, quality, context. Response curves are monotone for `uc_decay_share`, `uc_lift`, `u_pos_rate`, `i_pos_rate` — clean for GBDTs. `ui_prior_n` goes flat then drops = repeat fatigue. Details: `03_feature_deciles.png`, `03_interest_representation.png`.
+- best single features: `u_pos_rate` ~0.68 roc-auc, `u_mean_score` ~0.66, `u_play_ratio` ~0.63.
+- user features > user-category > item > context. no lone winner → the model combines many.
 
-### 3. Activity is brutalist inequality. Personalize or die.
+![feature deciles](eda/figures/03_feature_deciles.png)
+![feature correlation](eda/figures/02_feature_correlation.png)
 
-<p align="center">
-  <img src="eda/figures/03_user_activity.png" width="100%" alt="user activity inequality" />
-</p>
+### 3. activity is brutally unequal — personalise or die
 
-Events/user (log10) is broad and unimodal. Median: **223 events/user**. Active days peak at 3–4, tail to 20. Lorenz Gini **0.63** — top 1% users = **12.0%** of events, top 10% = **47.9%**.
+a few users scroll a *lot*. a model that treats everyone the same will be wrong for almost everyone.
 
-**Takeaway:** global estimators collapse. Every model input is user-normalized (`u_pos_rate`, `u_mean_score`, per-action rates) + personalized priors. No exceptions.
+![user activity](eda/figures/03_user_activity.png)
 
-### 4. Exposure ≠ quality. Popularity is a coverage hack, not a ranker.
+- median **223 events per user**, but the distribution is a long tail (gini ~0.63).
+- top 1% of users generate ~12% of events; top 10% ~48%.
 
-<p align="center">
-  <img src="eda/figures/03_item_popularity.png" width="100%" alt="item popularity and exposure bias" />
-</p>
+that's why almost every feature is **user-normalised** (each user's own click rate, their own mean
+score, their own affinity) instead of a global average.
 
-Rank-frequency is log-log linear long-tail. Exposure Gini **0.55** — top 1% items take **20.3%** of all impressions. But log-exposure vs. engagement rate correlation is only **0.128** (items ≥20 events). Median **5 events/item**, density **0.03656%**.
+### 4. popularity is a coverage hack, not a ranker
 
-**Takeaway:** popularity buys coverage, fails on niche relevance. Corrected with item quality priors (`i_pos_rate`, `i_mean_score`, `i_play_ratio`) + novelty control + category fallback. k-core keeps only **18.9%** of items — the tail you filter is the tail you serve, so cold-item path is mandatory (see §6).
+the most-shown videos aren't the best ones.
 
-### 5. Prime time drives volume. Midday drives efficiency.
+![item popularity](eda/figures/03_item_popularity.png)
 
-![temporal volume and engagement](eda/figures/03_temporal_patterns.png)
+- exposure is a log-log long tail (gini ~0.55): top 1% of videos take ~20% of impressions.
+- but log-exposure vs engagement-rate correlation is only ~0.13 — being popular barely tells you if a
+  video will engage.
 
-- Volume peaks **20–21h**, weekday×hour max at **19–21h**. Weekends spread flatter across daytime.
-- Engagement rate peaks **~12–13h (~55%)** + secondary **18–19h**, craters to **~23% at 03–04h**. Overnight 00–05h is tier-0 dominated.
-- Daily: feed stabilizes ~0.5–0.6M/day, aggregate engagement climbs **40% → 59%** over window. Weekend **48.80%** vs weekday **47.90%** — basically flat, hour matters more than day.
+so popularity is a fine *baseline* and a terrible *policy*. the model uses quality priors per video
+(`i_pos_rate`, `i_mean_score`, `i_play_ratio`) plus a category fallback for cold videos.
 
-**Takeaway:** `ctx_hour` + cyclic sin/cos + weekend flag = free contextual lift. Rank differently at noon vs. midnight.
+### 5. timing matters
 
-Sessions (30-min gap, 20K-user sample): **~430K sessions, median 8 events / 4.2 min**. Engagement by length: 1 evt **19.1%** → 2–3 **28.2%** → 4–10 **36.8%** → 11–30 **45.6%** → 31–100 **51.6%** → 100+ **49.9%**. First impressions decide whether the session lives. Figure: `03_sessions.png`.
+![temporal patterns](eda/figures/03_temporal_patterns.png)
 
-### 6. Search is the cheat code for feed ranking.
+- volume peaks around 20–21h; engagement peaks around midday and drops off a cliff at 3–4am.
+- so we feed the model the hour (as a sine/cosine pair) — noon ≠ midnight.
 
-![search vs feed transfer](eda/figures/03_search_vs_feed.png)
+### 6. search is a cheat code for the feed
 
-Search = 15.5% of events, **97.4%** of users have ≥1 search. Opposite clocks: search peaks **03–05h**, feed peaks **20–21h** — different contexts, same user.
+search is a small slice of traffic but a strong signal, and it behaves on a different clock from the
+feed.
 
-Feed engagement conditioned on same-category history:
+![search vs feed](eda/figures/03_search_vs_feed.png)
 
-| prior feed eng. | prior search | feed eng. rate | mean tier |
-|---|---|---|---|
-| No | No | 49.31% | 0.56 |
-| No | **Yes** | **55.63%** | **0.66** |
-| Yes | No | 54.74% | 0.62 |
-| Yes | **Yes** | **64.30%** | **0.75** |
+- search ≈ 15% of events, but ~97% of users search at least once.
+- feed engagement is **+6 to +10 points** higher when the user recently searched the same category.
 
-**+6–10pp lift** from same-category search, every time. That's why search-derived features + the +2.0 search bonus survive. Search logs click-only — zeros for like/follow/forward mean *unlogged*, not negative. Handled via `schema.json: observed_by_source`.
+one catch: search logs *clicks only*. so for search rows, `like/follow/forward` are **unobserved**, not
+"disliked". we **mask** those instead of pretending they're negatives — a classic and costly ranking
+mistake we avoid.
 
-Watch-time backs it up: median watch ratio **0.218**, bimodal (skip-spike near 0, completion-spike near 1.0), tier-0 median ~0 vs tier-1+ **~0.7–0.9**, play-ratio↔intent correlation **0.331**. Short videos complete more, long videos engage more. Dense signal where discrete actions are sparse (~3% likes). Figure: `03_watch_behaviour.png`.
+### 7. watch-time is the dense signal
 
-Repeat kills: 0 priors **52.04%** → 1 prior **15.22%** → 2 priors **10.57%** → 3+ priors **4.09%**. Category novelty decays **28% (day 0) → 16% (days 1–2) → ~1% (day 10+)**, median **2.4%**. Recency is non-monotonic → exponential decay (3-day half-life, 7-day lookback), not linear. Downweight seen items hard. Figure: `03_repeat_novelty_recency.png`.
+discrete actions are sparse (~3% likes) but the watch fraction is available on most rows.
 
-Categories (38): #39 leads at **~1.35M events**, but high exposure ≠ high engagement (bubble: x = exposure share, y = engagement rate, size = users, color = mean intent). Users are broad — entropy **~4 bits**, median **20 engaged categories**, top-category share only **~0.21**. Exploit + diversify. Figures: `03_category_overview.png`, `03_category_action_heatmap.png`, `03_interest_concentration.png`.
+![watch behaviour](eda/figures/03_watch_behaviour.png)
 
-### 7. Evaluation is hostile by design — 45% cold items.
+- watch fraction is bimodal: a spike near 0 (instant skip) and a spike near 1 (finished).
+- tier-0 rows watch ~0; tier-1+ rows watch ~0.7–0.9.
 
-![cold start and drift](eda/figures/03_coldstart_drift.png)
+### 8. novelty or death
 
-| split | rows | pos rate | strong rate | search % | cold user | cold item | cold user-cat |
-|---|---|---|---|---|---|---|---|
-| train | 2.73M | 50.76% | 3.06% | 12.27% | 0.14% | 47.44% | 4.89% |
-| val | 1.51M | 48.17% | 2.82% | 11.24% | 0.62% | 46.29% | 4.11% |
-| test | 1.34M | 51.38% | 3.05% | 8.01% | 3.30% | 44.79% | 13.20% |
+showing the same thing again kills engagement fast.
 
-Label-tier mix is stable → no target drift. User cold-start is trivial; **item cold-start is the whole game**. No memorizing item IDs — fallback is category affinity + item quality priors + exploration. Cohorts/DAU stable over the 19-day window: enough for habit + session extension, not for long-term churn. Figures: `03_cohorts.png`.
+![repeat, novelty, recency](eda/figures/03_repeat_novelty_recency.png)
 
-> Full gallery: **22 PNGs in [`eda/figures/`](eda/figures/)** — every claim above traces to a committed figure. Notebooks are source of truth.
+- engagement drops as a user sees more of the same category: 0 priors ~52% → 1 prior ~15% → 3+ ~4%.
+- so we down-weight seen items and use exponential recency (3-day half-life, 7-day lookback).
+
+### 9. categories are broad but shallow
+
+![category overview](eda/figures/03_category_overview.png)
+
+- 38 first-level categories; users engage a **median of ~20** of them.
+- entropy ~4 bits — people are exploratory, so a good feed both exploits *and* diversifies.
+
+### 10. evaluation is hostile by design
+
+![cold start drift](eda/figures/03_coldstart_drift.png)
+![cohorts](eda/figures/03_cohorts.png)
+
+cold **videos** (unseen within a split) are the hard part — no memorising item ids; the model leans on
+category affinity + quality priors + exploration. user cohorts and label mixes stay stable across the
+window, so there's no target drift.
+
+> full gallery: **22 pngs in [`eda/figures/`](eda/figures/)**. the notebooks
+> [`eda/01_load_and_clean.ipynb`](eda/01_load_and_clean.ipynb),
+> [`02_preprocess_and_features.ipynb`](eda/02_preprocess_and_features.ipynb),
+> [`03_eda.ipynb`](eda/03_eda.ipynb) are the source of truth.
 
 ---
 
-## Mini-Feed — the engine that ranks the feed
+## the task and the labels
 
-**One line:** a calibrated 10,000-bot user simulator plus a **Find → Rank → Compose → Learn**
-serving stack, evolved to **59% of the personalized-oracle gap** — every rung verified by a paired
-per-bot bootstrap, every rejection recorded with its measured cost. The offline ranker itself was
-lifted from 0.4961 → **0.5006** val NDCG@10 (test +0.0049) by a bigger net plus a ranking-aware loss.
+the model predicts **five actions**: `click`, `like`, `follow`, `forward`, `watch`. two subtleties:
 
-```mermaid
-graph LR
-    raw["raw 19.66M events<br/>KuaiSAR-v2"] --> kc["k-core 5/3<br/>13.07M rows · 43 features"]
-    kc --> world["World<br/>10,000 bots × 7 days<br/>hidden appeal + taste"]
-    world --> find["Find<br/>150-candidate pool"]
-    find --> rank["Rank<br/>TasteNet · 123k params<br/>ranking-aware loss"]
-    rank --> compose["Compose<br/>α + recency diversity · η affinity"]
-    compose --> respond["Respond<br/>click · watch · like · follow"]
-    respond -->|"session logs"| learn["Learn<br/>sim-native ranker"]
-    learn --> rank
-    respond -->|"features + fatigue"| find
+- **masking.** not every action is logged everywhere (search = clicks only). we ignore unobserved
+  labels rather than calling them negatives.
+- **ranking, not regression.** what matters is *order*. the final metric is ndcg@k over each user's
+  impressions, with gains `[0,1,2,3,4]` derived from the tier, so a strong engagement counts far more
+  than a weak one.
+
+---
+
+## the model
+
+one architecture — the "wide" `tastenet` — and nothing else. it's a small multi-tower network:
+
+```text
+user tower    9  features  → 128 → 64
+video tower   5  features  (+ 24-dim category embedding) → 128 → 64
+pair tower    13 features  → 64
+interaction   element-wise  user ⊙ video        ← lets the model learn "this user likes this, why"
+fusion        256 → 128 → 5 logits               ← one logit per action
 ```
 
-The same 10,000 bots, schedules and random draws are replayed per policy (common random numbers),
-so the ladder is a paired experiment, not a zoo of sim runs.
+**122,773 parameters.** that's the whole model — small enough to train on a cpu in minutes, big enough
+to matter. the element-wise interaction is the key idea: it lets the network reason about *specific*
+user–video combinations, not just each side separately.
 
-![the ladder](notes/figures/01_ladder.png)
+---
 
-| policy | IWE / bot | oracle gap closed | promotion (95% CI) |
+## training
+
+we train with a **hybrid objective**:
+
+```text
+loss = masked bce (predict each action's probability, ignore unlogged actions)
+     + rank_weight · lambdarank (reward putting higher-tier videos above lower-tier ones)
+```
+
+the ranking term is what moved the needle. ablation (same architecture/data/seed, only the objective
+changes) — full data, paired bootstrap vs the plain-bce reference:
+
+| variant | change | val ndcg@10 | delta vs ref (95% ci) |
 |---|---|---|---|
-| random | 61.86 | 0 | baseline |
+| `lambdarank` | `loss=lambdarank` | **0.5119** | **+0.0158 [+0.0132, +0.0184]** |
+| `no_weighting` | drop sqrt positive-weighting | 0.5002 | +0.0041 [+0.0021, +0.0062] |
+| `cap5` | cap positive weight at 5 | 0.4974 | +0.0013 [-0.0003, +0.0029] |
+| `masked_bce` | reference | 0.4961 | — |
+| `uncertainty` | learn per-head weights | 0.4945 | -0.0016 [-0.0033, -0.0001] |
+| `lr 5e-3` | higher learning rate | 0.4932 | -0.0029 [-0.0049, -0.0011] |
+
+the shipped model trains with lambdarank for **up to 22 epochs** (early-stopped at 16; best epoch 11).
+epoch by epoch:
+
+| epoch | train obj | val ndcg@10 | val ndcg@20 | | epoch | train obj | val ndcg@10 | val ndcg@20 |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 0.842 | 0.4989 | 0.5523 | | 9 | 0.803 | 0.5100 | 0.5623 |
+| 2 | 0.816 | 0.5027 | 0.5548 | | 10 | 0.801 | 0.5107 | 0.5627 |
+| 3 | 0.814 | 0.5064 | 0.5580 | | **11 ★** | 0.801 | **0.5143** | 0.5656 |
+| 4 | 0.809 | 0.5057 | 0.5582 | | 12 | 0.797 | 0.5126 | 0.5642 |
+| 5 | 0.807 | 0.5076 | 0.5596 | | 13 | 0.797 | 0.5099 | 0.5623 |
+| 6 | 0.808 | 0.5072 | 0.5602 | | 14 | 0.792 | 0.5114 | 0.5633 |
+| 7 | 0.807 | 0.5093 | 0.5608 | | 15 | 0.789 | 0.5119 | 0.5637 |
+| 8 | 0.806 | 0.5111 | 0.5631 | | 16 | 0.788 | 0.5136 | 0.5653 |
+
+![training curves](eda/figures/10_training_curves.png)
+
+two notes an intermediate reader will appreciate:
+
+- the val **bce** column isn't shown because a *ranking* objective is allowed to sacrifice probability
+  calibration for order — bce can rise while ndcg improves. ndcg is the number that decides.
+- more epochs genuinely helped: the first 6-epoch pilot reached 0.5006; the longer run reaches
+  **0.5143**.
+
+---
+
+## how well does it rank?
+
+we score the model once on validation and once on test and compare with two no-ml baselines.
+
+![model vs baselines](eda/figures/11_model_vs_baselines.png)
+
+| ranking method | val ndcg@10 | test ndcg@10 |
+|---|---|---|
+| **our network (lambdarank)** | **0.5143** | **0.5332** |
+| personal affinity | 0.4822 | 0.5013 |
+| popularity | 0.4766 | 0.4976 |
+| random | 0.4293 | 0.4407 |
+
+paired bootstrap on the test split: our network beats popularity by **+0.0356 ndcg@10**, 95% ci
+**[+0.0327, +0.0384]** — the interval excludes zero, so this is a real improvement, not luck. it also
+beats personalized affinity, and it does so with a **123k-parameter** model trained on a cpu.
+
+---
+
+## from a ranker to a whole feed policy (the simulator)
+
+a good ranking score is necessary but not sufficient — a real feed also needs **diversity** (don't loop
+the same topic) and **retention** (keep people around). to test the full system we plug the network
+into a calibrated **closed-loop user simulator** (10,000 bots × 7 days) and compare policies on a
+"well-being" score (iwe), with the same random draws replayed per policy (paired comparison).
+
+![the ladder](eda/figures/policy_01_ladder.png)
+
+| policy | iwe / bot | oracle gap closed | promotion (95% ci) |
+|---|---|---|---|
+| random | 61.86 | 0.00 | baseline |
 | popularity | 77.87 | 0.11 | +16.0 [+15.3, +16.7] |
-| personal_affinity | 93.64 | 0.21 | +15.8 [+14.1, +17.4] |
-| taste (learned ranker) | 120.26 | 0.39 | +26.6 [+24.0, +29.3] |
-| taste_composer | 140.44 | 0.52 | +20.2 [+18.9, +21.5] |
-| **evolved (ES over 18 knobs)** | **151.53** | **0.59** | **+11.1 [+9.9, +12.4]** |
-| oracle | 213.10 | 1.00 | greedy ceiling |
+| personal affinity | 93.64 | 0.21 | +15.8 [+14.1, +17.4] |
+| taste (the learned ranker) | 120.26 | 0.39 | +26.6 [+24.0, +29.3] |
+| taste + composer | 140.44 | 0.52 | +20.2 [+18.9, +21.5] |
+| **evolved (es over 18 knobs)** | **151.53** | **0.59** | **+11.1 [+9.9, +12.4]** |
+| oracle (greedy ceiling) | 213.10 | 1.00 | — |
 
-Engagement never bought its keep by collapsing diversity: coverage 77 → 81%, category entropy
-3.08 → 3.33 bits, repeat-exposure *down* 0.6 → 0.4%. More figures:
-[`notes/figures/`](notes/figures/) — generations `02`, calibration `03`, cohort headroom `04`,
-return curves `05`.
+every adjacent rung's ci excludes zero, so each step is a real gain. and engagement doesn't come by
+killing diversity: category entropy goes *up* (3.08 → 3.33 bits) and repeat-exposure goes *down*
+(0.6% → 0.4%).
 
-### Three-command quickstart
+![generations](eda/figures/policy_02_generations.png)
+![calibration](eda/figures/policy_03_calibration.png)
+![cohorts](eda/figures/policy_04_cohorts.png)
+![retention](eda/figures/policy_05_retention.png)
+
+a simulator is only useful if it resembles reality — it's calibrated to real marginals and **7 of 12**
+targets land inside the 15% tolerance band (the 5 misses are honest model-form limits, documented in
+[`notes/calibration.md`](notes/calibration.md)).
+
+---
+
+## watching one session
+
+finally, we roll the trained ranker through the simulator and watch a single session unfold swipe by
+swipe — the video being watched, the next recommendation (**with its topic**), and the reaction.
+
+```text
+[01] watching : — (session start)
+     next up  : real estate · clip #966780     reacted : click, watch 87%   (tier 1)
+[02] watching : real estate · clip #966780
+     next up  : real estate · clip #6376331    reacted : scroll past        (tier 0)
+[03] watching : real estate · clip #6376331
+     next up  : real estate · clip #3902995    reacted : click, forward, watch 85%  (tier 4)
+...
+```
+
+![sim behaviour](eda/figures/12_sim_behaviour.png)
+![sim position](eda/figures/13_sim_position.png)
+
+the summary metrics for the simulated population (clicks, likes, watch fraction, engagement mix) are
+all in [`demo.ipynb`](demo.ipynb) section 10. everything in this section is **simulated** — it
+illustrates behaviour and is *not* a causal claim about real people.
+
+---
+
+## what we tried that didn't work (kept on purpose)
+
+honest research keeps the failures. each was measured with a ci, not hand-waved:
+
+| idea | measured fate |
+|---|---|
+| seen-penalty γ | −0.01 [−0.66, +0.64] — redundant with within-session dedup |
+| cold-item bonus β | −1.04 [−2.21, +0.13] — cold start needs a real exploration process |
+| ε-greedy exploration | −2.34 [−3.00, −1.67], plus a worse repeat-exposure guardrail |
+| length-adaptive diversity alone | −5.70 [−6.70, −4.69] — collapses iwe |
+| raw capacity (wide / deep / cross) | ≈ neutral under bce (−0.001 to −0.002): the **objective**, not size, helps |
+| learned per-head loss weighting | −0.0016 [−0.0033, −0.0001] |
+
+---
+
+## run it yourself
 
 ```bash
 cd recommender-engine
 P=~/miniconda3/envs/picograd/bin/python
-$P run_offline.py --fast        # offline TasteNet + graded NDCG
-$P run_improve.py --test baseline_masked,wide_hybrid   # ranking-aware loss beats baseline (~12 min)
-$P run_swarm.py                 # the ladder (~2 min) incl. evolved
-$P run_evolve.py                # (1+λ)-ES -> config/policy_evolved.yaml
-$P -m pytest -q                 # 35 tests
+$P -m pytest -q                                     # 35 fast tests
+$P run_offline.py --fast                            # sanity: full pipeline + graded ndcg
+$P run_train.py --variant wide --loss lambdarank    # the shipped network (long run, cpu)
+$P run_swarm.py                                     # the policy ladder (~2 min)
+$P run_generations.py                               # composer generations
+$P run_evolve.py                                    # (1+λ)-es over 18 knobs
+$P -m feed.plotting                                 # policy figures -> ../eda/figures/
+$P build_demo.py                                    # regenerate demo.ipynb
+python -m nbconvert --to notebook --execute ../demo.ipynb --output ../demo.ipynb
 ```
 
-Figures: `$P -m feed.plotting`. End-to-end executed notebook: [`demo.ipynb`](demo.ipynb). Pretrained
-checkpoints are published in [`recommender-engine/weights/`](recommender-engine/weights/). Full run
-sheet and per-phase write-ups: [`recommender-engine/`](recommender-engine/), [`notes/`](notes/),
-[`status.md`](status.md), [`notes/phaseA.md`](notes/phaseA.md).
-
-### What didn't work (kept on purpose)
-
-| idea | measured fate |
-|---|---|
-| seen-penalty γ | −0.01 [−0.66, +0.64] — redundant with the hard within-session dedup |
-| cold-item bonus β | −1.04 [−2.21, +0.13] — cold-start needs a real exploration story, not a bonus |
-| ε-greedy exploration | −2.34 [−3.00, −1.67] and repeat-exposure guardrail +21% worse |
-| recency-weighted diversity alone | +1.31 IWE but a guardrail degraded → rejected; only the joint `α 0.5 + recency 0.85` retune survived (+1.10 [+0.16, +2.04]) |
-| length-adaptive diversity alone | −5.70 [−6.70, −4.69] — stiffening the penalty with session length collapses IWE |
-| raw capacity (wide / wide_deep / cross) | ≈ neutral under BCE (−0.0012 to −0.0017); the ranking-aware objective, not more params, is what helps |
-| hour-trough / repeat ×2–×3 calibration | structural model-form limits, documented in [`notes/calibration.md`](notes/calibration.md) |
-
-**Honesty clause:** the simulator is hand-designed and calibrated to marginals only (7/12); absolute
-IWE is not a claim about real users — all results are **relative**, under stated assumptions, with
-guardrails and CIs attached.
+pretrained checkpoints are published in
+[`recommender-engine/weights/`](recommender-engine/weights/) (the shipped ranker + the sim ranker).
 
 ---
 
-## What we built from it
-
-**Pipeline:** `01_load_and_clean` → `02_preprocess_and_features` → `03_eda`. Strict order. Raw data git-ignored, artefacts in `data/`.
-
-- **01 — Load & clean.** Pattern-matched discovery, 5-row schema probe, canonical column resolution. ~1436 MB resident for 19.66M rows (reduced int dtypes, categorical source). Conservative clean: **99.75% retained**. Only row-drop is exact dups. Flags binarized (click>1 in 0.155% → 1; high-intent-without-click 0.813% kept, no fake clicks — feed likes don't need detail clicks), `play_ratio` clipped 0–5, non-positive duration 2.691% → NaN. Zero null keys, zero bad timestamps. No bot filtering — 3 users >24,913 events kept + reviewed. Figures: `01_raw_volume_and_prevalence.png`, `01_cleaning_summary.png`.
-- **02 — Intent + features + splits.** One config block: tiers, weights, search bonus, 3-day half-life, 7-day lookback, splits 0.50/0.70/0.85, k-core 5/3, UTC+8, seed 42. Iterative k-core → per-event `tier/score/neg/pos/is_search` → time axis (`t`, `day`, `hour`, `dow`, cuts c1/c2/c3) → **rolling as-of splits from history only** (train labels [c1,c2) ~3.87d, val/test ~2.91d each) with assertion guards. **43 features**, zero NaNs, labels never in features: `u_*` habit (counts, rates, recency, watch) · `uc_*` affinity (decayed scores, exposure/decay share, lift = decay/exposure, repeat, recency) · `i_*` quality · `ui_*` memory · `ctx_*` time/source · `cold_*` fallbacks · `cat_id`. Outputs: `events_enriched.parquet`, `features_{train,val,test}.parquet`, `user_interest.parquet`, `feature_dictionary.csv`, `id_maps_*`, `preprocess_config.json`. Figures: `02_tier_distribution.png`, `02_feature_correlation.png` (Spearman block structure, no perfect collinearity — scale/encode in pipeline, fit on train only).
-- **03 — EDA.** 15 sections, 1M-event + 20K-user samples (seed 42) for heavy plots, full data for tables. All outputs `03_*.png`.
-
-**Feature groups (43 total — see `data/processed/feature_dictionary.csv`):**
-`u_n_events, u_n_items, u_active_days, u_mean_score, u_pos_rate, u_search_share, u_recent24, u_n_cats, u_recency, u_play_ratio, u_rate_{click,like,follow,forward}` · `uc_n, uc_items, uc_pos, uc_score, uc_decay, uc_exposure_share, uc_decay_share, uc_lift, uc_repeat, uc_recency` · `i_n, i_users, i_mean_score, i_pos_rate, i_duration, i_play_ratio` · `ui_prior_n, ui_prior_max_tier, ui_prior_score` · `cold_user, cold_item, cold_uc` · `ctx_hour, ctx_dow, ctx_is_search, ctx_hour_sin/cos, ctx_is_weekend` · `cat_id`
-
----
-
-## Design rules the EDA forced
-
-1. **Graded intent, not binary clicks.** Tiers 0–4 + watch ratio. NDCG@k with tier gains. Equal-weight = baseline only.
-2. **Habit + affinity over popularity.** `u_pos_rate`, `u_mean_score`, `uc_lift`, `uc_decay_share` are monotone and transfer. Popularity = coverage.
-3. **Time is free signal.** Hour/weekend encodings stay. Noon ≠ midnight.
-4. **Novelty or death.** Repeat penalty + 3-day exponential decay + 7-day lookback, fixed across splits.
-5. **Search → feed transfer.** Keep search features + bonus. +6–10pp is not noise.
-6. **Cold-item path is P0.** ~45% unseen/split. Category priors + quality estimates + exploration.
-7. **Beat real baselines.** Global popularity, personalised popularity, equal-weight — per-user ranking of label-window impressions, plus coverage/diversity/novelty. Product BAR: longer sessions, more return visits, more high-intent actions per active hour.
-
----
-
-## Reproduce
-
-```text
-data/raw/       <- KuaiSAR-v2 CSVs, git-ignored
-data/interim/   <- notebook 01: events.parquet, items.parquet, users.parquet, schema.json, cleaning_report.csv
-data/processed/ <- notebook 02: events_enriched.parquet, features_{train,val,test}.parquet, ...
-eda/figures/    <- 22 committed PNGs
-```
-
-```bash
-pip install pandas numpy matplotlib seaborn scikit-learn pyarrow jupyterlab
-jupyter lab
-# run in order:
-# eda/01_load_and_clean.ipynb
-# eda/02_preprocess_and_features.ipynb
-# eda/03_eda.ipynb
-```
-
-Rules: 03 needs 01+02 artefacts. 01 writes only to `data/` + `eda/figures/`. Unlogged actions are 0 — check `schema.json: observed_by_source` before cross-source compares. All scaling/encoding fit on train only.
-
----
-
-## Structure
+## repo layout
 
 ```text
 doomscroll/
+  demo.ipynb                      ← the end-to-end, executed notebook (start here)
   eda/
-    01_load_and_clean.ipynb          <- raw → canonical event table
-    02_preprocess_and_features.ipynb <- tiers, splits, 43 features
-    03_eda.ipynb                     <- behavioural analysis, all figures
-    figures/                         <- 22 PNGs, embedded above + linked
-  recommender-engine/                <- simulator + Find→Rank→Compose→Learn engine (Phases 0–4)
-    feed/                            <- world, swarm, policies, composer, evolve, plotting
-    artifacts/  models/  tests/  config/
-  notes/                           <- phase write-ups + figures/ (the 5 headline PNGs)
-  data/raw|interim|processed         <- ignored, see Reproduce
-  status.md                          <- phase-by-phase build log, done vs left
+    01_load_and_clean.ipynb       ← raw → canonical event table
+    02_preprocess_and_features.ipynb ← tiers, temporal splits, 43 features
+    03_eda.ipynb                  ← behavioural analysis, all figures
+    figures/                      ← every png: 22 eda + 5 policy + diagnostics + training/sim
+  recommender-engine/
+    feed/                         ← world, swarm, policies, composer, evolve, model, losses, train
+    run_*.py                      ← drivers (offline, train, improve, swarm, generations, evolve, losses)
+    weights/                      ← published cpu checkpoints
+    config/  tests/  artifacts/
+  notes/                          ← per-phase write-ups + results/*.json
+  status.md                       ← phase-by-phase build log, done vs left
 ```
-
-## Roadmap
-
-- Shipped: EDA (22 figures) + the full engine pipeline Phases 0–5 — see [`status.md`](status.md).
-- Next: a real cold-start P0 (the ε/β story needs an actual exploration process, not a bonus) ·
-  EDA extensions: per-category retention curves · creator concentration · query→category transfer.
-
-## Limitations
-
-- 19 days → short-term habit + session extension, not long-term churn.
-- Logged interactions ≠ full scroll telemetry — gaps/sessions approximate.
-- Search logs clicks only — zeros elsewhere are missing, not negative.
-- k-core drops 81% of items from training — serving tail needs fallback.
-- Univariate AUC = viability, not multivariate proof — interactions come from the ranker.
 
 ---
 
-## License & provenance
+## limitations (read these)
 
-MIT — see `LICENSE`. Data: KuaiSAR-v2, research use, never committed. Notebooks are source of truth for the data layer; the engine is code-first (`feed/` + configs + tests). Status: **EDA complete · engine Phases 0–4 shipped · Phase 5 (ship polish) complete — see [`status.md`](status.md)**.
+- engagement labels are **observational**; `watch` is only a proxy for satisfaction.
+- search rows log clicks only — zeros for like/follow/forward mean *unlogged*, not *negative*.
+- 19 days supports short-term habit modelling, not long-term churn.
+- the simulator is **hand-designed and calibrated to marginals only** (7/12) — sections about the
+  ladder and sessions are **relative and illustrative**, not causal claims about real users.
+- the k-core filter drops ~81% of items from training; serving the tail needs the cold-start path.
+- univariate auc shows feature *viability*, not multivariate proof — interactions come from the model.
+
+---
+
+## license & provenance
+
+mit — see `LICENSE`. data: kuaisar-v2, research use, never committed (git-ignored). notebooks are the
+source of truth for the data layer; the engine is code-first (`feed/` + configs + tests).
