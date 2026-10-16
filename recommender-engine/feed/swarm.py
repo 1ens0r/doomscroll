@@ -11,17 +11,21 @@ import numpy as np
 from feed.composer import ComposerState, zscore_rows
 from feed.featurestate import FeatureState, hour_sincos  # noqa: F401
 from feed.metrics import Metrics
-from feed.policies import (TasteScorer, build_pool, order_from_scores, rank_scores,
-                           taste_with_prior)
+from feed.policies import (TasteScorer, build_pool, effective_policy, order_from_scores,
+                           rank_scores, taste_with_prior)
 from feed.response import ResponseModel, leave_step, return_prob
 from feed.world import DAY_MS, HOUR_MS, World, build_world
 
-POLICIES = ["random", "popularity", "personal_affinity", "taste", "taste_composer", "oracle"]
+POLICIES = ["random", "popularity", "personal_affinity", "taste", "taste_composer", "evolved",
+            "oracle"]
+COMPOSER_POLICIES = ("taste_composer", "evolved", "oracle")
 
 
 def run_policy(world: World, policy: str, scorer: TasteScorer | None = None,
                collect_metrics: bool = True, collector=None, log=print) -> dict:
     cfg = world.cfg
+    if scorer is not None:
+        scorer.weights = cfg["policy"]["score_weights"]
     bots, cat = world.bots, world.catalog
     n_bots, n_days = bots.n_bots, bots.counts.shape[1]
     waves, cap = int(cfg["swarm"]["waves_per_day"]), int(cfg["swarm"]["max_session_items"])
@@ -69,8 +73,8 @@ def _run_wave(world, fs, resp, met, policy, scorer, sess_bots, d, w, cap, cold_m
     ts = d * DAY_MS + sess_hour * HOUR_MS
     pool = build_pool(world, fs, sess_bots, ts, world.rng(7, d, w), cfg["policy"]["retrieval"])
     comp = None
-    if policy in ("taste_composer", "oracle"):
-        if policy == "taste_composer":
+    if policy in COMPOSER_POLICIES:
+        if policy in ("taste_composer", "evolved"):
             base, prior = taste_with_prior(world, fs, sess_bots, pool, ts, scorer)
         else:
             base = rank_scores("oracle", world, fs, sess_bots, pool, ts, world.rng(8, d, w), scorer)
@@ -133,6 +137,6 @@ def simulate(policy: str, cfg: dict, seed: int, scorer: TasteScorer | None = Non
              n_bots: int | None = None, n_days: int | None = None,
              collect_metrics: bool = True, collector=None, log=print) -> dict:
     world = build_world(cfg, seed, n_bots=n_bots, n_days=n_days)
-    world.cfg["policy"] = cfg["policy"]
+    world.cfg = {**cfg, "policy": effective_policy(cfg["policy"], policy)}
     return run_policy(world, policy, scorer, collect_metrics=collect_metrics,
                       collector=collector, log=log)

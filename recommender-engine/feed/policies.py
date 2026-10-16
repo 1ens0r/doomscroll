@@ -3,11 +3,31 @@ with the pool held fixed across policies so the ladder isolates the ranker, not 
 """
 from __future__ import annotations
 
+import copy
+
 import numpy as np
 import torch
 
 from feed.data import DENSE, load_scaler, standardize_matrix
 from feed.model import build_model, load_meta, predict_probs, score_from_probs
+
+_RETRIEVAL_MIX = ("n_popular", "n_affinity", "n_new", "n_random")
+
+
+def effective_policy(policy: dict, name: str) -> dict:
+    """Base policy, with the Phase-4 evolved knobs overlaid when the `evolved` rung is requested."""
+    if name != "evolved":
+        return policy
+    over = policy.get("_evolved")
+    if not over:
+        raise ValueError("evolved policy requested but no _evolved overrides are loaded")
+    p = copy.deepcopy(policy)
+    for block in ("composer", "score_weights", "retrieval"):
+        if block in over:
+            p[block] = {**p[block], **over[block]}
+    rc = p["retrieval"]
+    rc["pool_size"] = int(sum(int(round(rc[k])) for k in _RETRIEVAL_MIX))
+    return p
 
 
 class TasteScorer:
@@ -83,7 +103,7 @@ def rank_scores(name: str, world, fs, bots_idx: np.ndarray, pool: np.ndarray, ts
         lift = decay_share / (exp_share + float(rc["lift_prior"]))
         lift = np.clip(lift, 0.0, float(rc["lift_cap"])).reshape(n_sess, P)
         return _zscore_rows(pop) + float(rc["affinity_weight"]) * _zscore_rows(lift)
-    if name in ("taste", "taste_composer"):
+    if name in ("taste", "taste_composer", "evolved"):
         x, cat = fs.pair_features(bs, its, tsf)
         return scorer.score(x, cat).reshape(n_sess, P)
     if name == "oracle":

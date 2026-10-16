@@ -20,9 +20,10 @@ from feed.world import ROOT, load_config
 
 MODELS = ROOT / "models"
 POLICY_PATH = ROOT / "config" / "policy.yaml"
+EVOLVED_PATH = ROOT / "config" / "policy_evolved.yaml"
 ART = ROOT / "artifacts"
 LADDER = ["random", "popularity", "personal_affinity", "taste", "oracle"]
-NEEDS_SCORER = {"taste", "taste_composer"}
+NEEDS_SCORER = {"taste", "taste_composer", "evolved"}
 
 
 def load_policy() -> dict:
@@ -31,6 +32,10 @@ def load_policy() -> dict:
     policy["_models_dir"] = MODELS
     # Prefer the ranker learned on simulator logs (Learn stage) when it exists.
     policy["_taste_ckpt"] = "taste_sim.pt" if (MODELS / "taste_sim.pt").exists() else "taste.pt"
+    # Phase-4 evolved knobs become an extra ladder rung when present.
+    if EVOLVED_PATH.exists():
+        with open(EVOLVED_PATH) as f:
+            policy["_evolved"] = yaml.safe_load(f)
     return policy
 
 
@@ -93,7 +98,13 @@ def main() -> int:
     n_boot = args.n_boot or (500 if args.fast else int(cfg["metrics"]["bootstrap_resamples"]))
     seed_all(seed)
 
-    policies = LADDER + ["taste_composer"] if args.policy == "all" else [args.policy]
+    if args.policy == "all":
+        policies = list(LADDER)
+        policies.insert(policies.index("oracle"), "taste_composer")
+        if cfg["policy"].get("_evolved"):
+            policies.insert(policies.index("oracle"), "evolved")
+    else:
+        policies = [args.policy]
     scorer = TasteScorer(cfg["policy"], cfg["policy"]["python_threads"]) if NEEDS_SCORER.intersection(
         policies) else None
 
@@ -106,6 +117,7 @@ def main() -> int:
     iwe = {p: np.asarray(stats[p]["iwe_per_bot"], float) for p in policies}
 
     pairs, ladder_ok = {}, True
+    extra_pairs = {}
     for a, b in zip(LADDER[:-1], LADDER[1:]):
         ci = paired_bootstrap(iwe[b], iwe[a], n_boot, seed)
         ci["pass"] = bool(ci["lo"] > 0)
@@ -113,6 +125,14 @@ def main() -> int:
         pairs[f"{b}_gt_{a}"] = ci
         print(f"[swarm] {b:>16} > {a:<16} d={ci['mean_diff']:+.4f} "
               f"[{ci['lo']:+.4f},{ci['hi']:+.4f}] {'PASS' if ci['pass'] else 'FAIL'}")
+    # Composer / evolved are reported above the acceptance ladder (not gating it).
+    for a, b in (("taste_composer", "taste"), ("evolved", "taste_composer")):
+        if a in iwe and b in iwe:
+            ci = paired_bootstrap(iwe[a], iwe[b], n_boot, seed)
+            ci["pass"] = bool(ci["lo"] > 0)
+            extra_pairs[f"{a}_gt_{b}"] = ci
+            print(f"[swarm] {a:>16} > {b:<16} d={ci['mean_diff']:+.4f} "
+                  f"[{ci['lo']:+.4f},{ci['hi']:+.4f}] {'PASS' if ci['pass'] else 'FAIL'}")
 
     base, ceil = iwe["random"].mean(), iwe["oracle"].mean()
     gap = {p: (float(iwe[p].mean() - base) / (ceil - base)) for p in policies if ceil != base}
@@ -122,6 +142,7 @@ def main() -> int:
                                    "calibrated": cfg["_calibrated"], "n_boot": n_boot},
         "iwe": {p: {"mean": float(iwe[p].mean()), "std": float(iwe[p].std())} for p in policies},
         "oracle_gap_closed": gap, "times_sec": times, "ladder": pairs,
+        "extra_pairs": extra_pairs,
         "acceptance": {"pass": bool(ladder_ok), "order": LADDER},
         "print_summary": {p: stats[p]["print_summary"] for p in policies},
         "diagnostics": {p: stats[p]["diagnostics"] for p in policies},

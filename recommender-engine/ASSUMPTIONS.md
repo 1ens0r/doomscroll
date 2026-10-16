@@ -216,3 +216,23 @@ than guessed around. Column names below were printed from the real CSV headers.
   (gap-closed 0.51, +13.4 over neutral). `gamma` (redundant with the hard within-session ban),
   `beta` (cold bonus) and `epsilon` (exploration) were rejected with recorded negative deltas.
   Full table: `reports/GENERATIONS.md`, `reports/phase3.md`.
+
+## A21. Evolution loop (Phase 4)
+- `feed/evolve.py` (mechanics) + `run_evolve.py` (entry): a (1+λ)-ES over **16** knobs from
+  `policy.yaml:evolve.knobs` — 7 composer coefficients, 5 score weights, 4 retrieval-mix counts.
+  The knob `value`s were set to the Phase-3 accepted composer (`gamma=beta=epsilon=0`) so the search
+  starts from the shipped best rather than the plan's stale defaults. `sigma = 0.15 × knob-range`,
+  decaying ×0.85/generation; integer knobs (`window_m`, pool counts) are rounded after clipping.
+- **Fitness = IWE − `penalty_frac`·IWE·(#guardrails degraded >10% vs the search-start composer)**
+  (`penalty_frac=0.05`). Interpretation of the plan's "0.05 × guardrail violations/frac": each
+  violated guardrail costs 5% of IWE. In practice no candidate violated a guardrail, so
+  fitness == IWE throughout; the penalty is retained as the accept gate.
+- Protocol: search on TRAIN (2k bots × 3d, seed 1), select the argmax of the per-generation best
+  children on VAL (5k × 7d, seed 2), measure once on TEST (10k × 7d, seed 3). Population evaluations
+  run in an 8-worker `multiprocessing` pool (single-threaded torch per worker); a 900 s budget
+  shrinks the generation count if projected to overrun (it never did).
+- Result: `evolved` = 149.54 IWE/bot on the seed-42 ladder (gap-closed 0.58, +11.27 over
+  `taste_composer`, CI [+9.94,+12.74]); TEST-protocol 150.03 vs 136.50 (+13.53 [+12.10,+14.92]).
+  Best knobs → `config/policy_evolved.yaml`; the `run_swarm` ladder adds an `evolved` rung
+  (`feed/policies.py:effective_policy` overlays the file onto the base policy). Reports:
+  `reports/phase4.md`, `reports/GENERATIONS.md`.

@@ -73,3 +73,43 @@ the decision, and the code keeps the accepted set from the full run.
   in the accepted set.
 - **Epsilon-greedy exploration hurts** and degrades repeat-exposure; there is no exploration story to tell
   at this scale.
+
+## Evolution log (Phase 4)
+
+`run_evolve.py`: (1+lambda)-ES over composer + score weights + retrieval mix, fitness
+= IWE discounted 5% per guardrail violated >10% vs the search-start composer. Search on
+TRAIN (seed 1), select on VAL (seed 2), TEST once (seed 3).
+
+| gen | best child IWE | fitness | violations | vs parent |
+|---|---|---|---|---|
+| 1 | 58.08 | 58.08 | 0 | improved |
+| 2 | 58.56 | 58.56 | 0 | improved |
+| 3 | 59.61 | 59.61 | 0 | improved |
+| 4 | 59.75 | 59.75 | 0 | improved |
+| 5 | 60.95 | 60.95 | 0 | improved |
+| 6 | 61.41 | 61.41 | 0 | improved |
+| 7 | 61.84 | 61.84 | 0 | improved |
+| 8 | 62.11 | 62.11 | 0 | improved |
+
+Selected knobs (VAL IWE 149.84):
+
+```yaml
+gamma: 0.028722100640785786
+alpha: 0.9169852449368447
+eta: 1.161274812431303
+beta: 0.0
+epsilon: 0.0
+d: 0.9223301532041229
+m: 9
+w_click: 1.6430108355362572
+w_watch: 1.5932507705720227
+w_like: 4.73996061197423
+w_forward: 6.876871413420349
+w_follow: 4.6170007417838965
+n_popular: 48
+n_affinity: 65
+n_new: 23
+n_random: 19
+```
+
+TEST (seed 3) IWE/bot: evolved 150.03 vs `taste_composer` 136.50 (delta +13.53, 95% CI [+12.10, +14.92]).

@@ -75,12 +75,13 @@ evolve:
   train: {bots: 2000, days: 3, seed: 1}
   val: {bots: 5000, days: 7, seed: 2}
   test: {bots: 10000, days: 7, seed: 3}
+  # Search starts from the Phase-3 accepted composer (gamma/beta/epsilon rejected there -> 0).
   knobs:
-    gamma:       {value: 2.0,  min: 0.0, max: 5.0}
+    gamma:       {value: 0.0,  min: 0.0, max: 5.0}
     alpha:       {value: 0.4,  min: 0.0, max: 1.5}
     eta:         {value: 0.5,  min: 0.0, max: 2.0}
-    beta:        {value: 0.3,  min: 0.0, max: 1.5}
-    epsilon:     {value: 0.05, min: 0.0, max: 0.25}
+    beta:        {value: 0.0,  min: 0.0, max: 1.5}
+    epsilon:     {value: 0.0,  min: 0.0, max: 0.25}
     d:           {value: 0.8,  min: 0.5, max: 1.0}
     m:           {value: 5.0,  min: 1.0, max: 10.0}
     w_click:     {value: 1.0,  min: 0.0, max: 3.0}

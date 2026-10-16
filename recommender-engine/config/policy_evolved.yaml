@@ -1,0 +1,21 @@
+composer:
+  gamma: 0.028722100640785786
+  alpha: 0.9169852449368447
+  eta: 1.161274812431303
+  beta: 0.0
+  epsilon: 0.0
+  decay: 0.9223301532041229
+  window_m: 9
+score_weights:
+  click: 1.6430108355362572
+  watch: 1.5932507705720227
+  like: 4.73996061197423
+  forward: 6.876871413420349
+  follow: 4.6170007417838965
+retrieval:
+  pool_size: 155
+  n_popular: 48
+  n_affinity: 65
+  n_new: 23
+  n_random: 19
+  affinity_prior: 2.0
