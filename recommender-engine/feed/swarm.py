@@ -116,7 +116,9 @@ def _run_wave(world, fs, resp, met, policy, scorer, sess_bots, d, w, cap, cold_m
         if trace is not None:
             for k in range(len(act)):
                 trace.append({"day": int(d), "wave": int(w), "step": int(i),
-                              "bot": int(b[k]), "item": int(items[k]), "cat": int(cats[k]),
+                              "bot": int(b[k]), "item": int(items[k]),
+                              "item_id": int(world.catalog.item_id[items[k]]),
+                              "cat": int(cats[k]),
                               "tier": int(out["tier"][k]), "click": int(out["click"][k]),
                               "like": int(out["like"][k]), "follow": int(out["follow"][k]),
                               "forward": int(out["forward"][k]), "watch": float(out["watch"][k]),

@@ -44,11 +44,24 @@ user's batch, mixed with a pairwise hinge at `train.rank_weight` (default 0.5). 
 study above shows `wide` ≈ `baseline` under plain BCE, the val/test gain of `wide_hybrid` is
 attributable to the **objective**, not the parameters.
 
-The objective ranking also reproduces on a 5-arm **fast (200k-row, 1-epoch) smoke** in
-`loss_ablation.json`: ranking-aware losses lead BCE — `L3_lambdarank 0.6926` and
-`L4_uncertainty 0.6753` / `L4_equal_heads 0.6753` vs `L0_masked_bce 0.6653` / `L2_cap5 0.6656`.
-A full-data 15-arm sweep was **not** run (time); the headline claim rests on the full `improve.json`
-run above. This is stated as a limitation, not hidden.
+The objective ranking is confirmed on the **full-data 8-arm sweep** in `loss_ablation.json`
+(baseline architecture, all train rows, shared protocol/seed; paired user-bootstraps vs `L0`):
+
+| arm | change | best ep | val NDCG@10 | Δ vs L0 (95% CI) |
+|---|---|---|---|---|
+| `L3_lambdarank` | `train.loss=lambdarank` | 6 | **0.5119** | **+0.0158 [+0.0132, +0.0184]** |
+| `L2_no_weighting` | `pos_weight_mode=none` | 4 | 0.5002 | +0.0041 [+0.0021, +0.0062] |
+| `L2_cap5` | `pos_weight_cap=5` | 4 | 0.4974 | +0.0013 [-0.0003, +0.0029] |
+| `L4_equal_heads` | `train.loss=equal_heads` | 4 | 0.4962 | +0.0001 [-0.0015, +0.0017] |
+| `L5_cosine` | `train.scheduler=cosine` | 4 | 0.4961 | +0.0000 [-0.0016, +0.0016] |
+| `L0_masked_bce` | reference | 3 | 0.4961 | — |
+| `L4_uncertainty` | `train.loss=uncertainty` | 4 | 0.4945 | -0.0016 [-0.0033, -0.0001] |
+| `L5_lr_5e-3` | `train.lr=5e-3` | 1 | 0.4932 | -0.0029 [-0.0049, -0.0011] |
+
+Ranking-aware and reweighting changes lead; the ranking term (`L3_lambdarank`) is decisive. Removing
+`sqrt` positive weighting helps a little, while an over-aggressive LR (`5e-3`) or learned uncertainty
+weighting **hurt**. Per-head loss/calibration diagnostics (val BCE, Brier, log-loss, ECE, grad-norm)
+are in `loss_diagnostics.json` → figure `06_loss_diagnostics.png`.
 
 ## A3 — better composer and evolution ladder
 

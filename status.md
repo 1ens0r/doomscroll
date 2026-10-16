@@ -214,6 +214,7 @@ recommender-engine/
   run_losses.py        pA  loss ablation + diagnostics figure
   run_improve.py       pA  headline: baseline vs improved, val+test once
   build_demo.py        pB  generates demo.ipynb
+  weights/             pB  published small checkpoints (+ weights/README.md)
   tests/               p1-pB  35 fast tests
   config/{policy,swarm,policy_evolved}.yaml
   ASSUMPTIONS.md       every modelling decision (A0-A21)

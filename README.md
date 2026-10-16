@@ -117,16 +117,17 @@ Label-tier mix is stable → no target drift. User cold-start is trivial; **item
 ## Mini-Feed — the engine that ranks the feed
 
 **One line:** a calibrated 10,000-bot user simulator plus a **Find → Rank → Compose → Learn**
-serving stack, evolved to **58% of the personalized-oracle gap** — every rung verified by a paired
-per-bot bootstrap, every rejection recorded with its measured cost.
+serving stack, evolved to **59% of the personalized-oracle gap** — every rung verified by a paired
+per-bot bootstrap, every rejection recorded with its measured cost. The offline ranker itself was
+lifted from 0.4961 → **0.5006** val NDCG@10 (test +0.0049) by a bigger net plus a ranking-aware loss.
 
 ```mermaid
 graph LR
     raw["raw 19.66M events<br/>KuaiSAR-v2"] --> kc["k-core 5/3<br/>13.07M rows · 43 features"]
     kc --> world["World<br/>10,000 bots × 7 days<br/>hidden appeal + taste"]
     world --> find["Find<br/>150-candidate pool"]
-    find --> rank["Rank<br/>TasteNet · 32k params"]
-    rank --> compose["Compose<br/>α diversity · η session affinity"]
+    find --> rank["Rank<br/>TasteNet · 123k params<br/>ranking-aware loss"]
+    rank --> compose["Compose<br/>α + recency diversity · η affinity"]
     compose --> respond["Respond<br/>click · watch · like · follow"]
     respond -->|"session logs"| learn["Learn<br/>sim-native ranker"]
     learn --> rank
@@ -143,13 +144,13 @@ so the ladder is a paired experiment, not a zoo of sim runs.
 | random | 61.86 | 0 | baseline |
 | popularity | 77.87 | 0.11 | +16.0 [+15.3, +16.7] |
 | personal_affinity | 93.64 | 0.21 | +15.8 [+14.1, +17.4] |
-| taste (learned ranker) | 120.28 | 0.39 | +26.6 [+24.2, +29.3] |
-| taste_composer | 138.27 | 0.51 | +18.0 [+16.6, +19.4] |
-| **evolved (ES over 16 knobs)** | **149.54** | **0.58** | **+11.3 [+9.9, +12.7]** |
+| taste (learned ranker) | 120.26 | 0.39 | +26.6 [+24.0, +29.3] |
+| taste_composer | 140.44 | 0.52 | +20.2 [+18.9, +21.5] |
+| **evolved (ES over 18 knobs)** | **151.53** | **0.59** | **+11.1 [+9.9, +12.4]** |
 | oracle | 213.10 | 1.00 | greedy ceiling |
 
-Engagement never bought its keep by collapsing diversity: coverage 75 → 82%, category entropy
-3.35 → 3.65 bits, repeat-exposure *down* 0.57 → 0.52%. More figures:
+Engagement never bought its keep by collapsing diversity: coverage 77 → 81%, category entropy
+3.08 → 3.33 bits, repeat-exposure *down* 0.6 → 0.4%. More figures:
 [`notes/figures/`](notes/figures/) — generations `02`, calibration `03`, cohort headroom `04`,
 return curves `05`.
 
@@ -157,14 +158,18 @@ return curves `05`.
 
 ```bash
 cd recommender-engine
-~/miniconda3/envs/picograd/bin/python run_offline.py --fast   # offline TasteNet + graded NDCG
-~/miniconda3/envs/picograd/bin/python run_swarm.py            # the ladder (~2 min) incl. evolved
-~/miniconda3/envs/picograd/bin/python run_evolve.py           # (1+λ)-ES -> config/policy_evolved.yaml
+P=~/miniconda3/envs/picograd/bin/python
+$P run_offline.py --fast        # offline TasteNet + graded NDCG
+$P run_improve.py --test baseline_masked,wide_hybrid   # ranking-aware loss beats baseline (~12 min)
+$P run_swarm.py                 # the ladder (~2 min) incl. evolved
+$P run_evolve.py                # (1+λ)-ES -> config/policy_evolved.yaml
+$P -m pytest -q                 # 35 tests
 ```
 
-Figures: `~/miniconda3/envs/picograd/bin/python -m feed.plotting`. Full run sheet and per-phase
-write-ups: [`recommender-engine/`](recommender-engine/), [`notes/`](notes/),
-[`status.md`](status.md).
+Figures: `$P -m feed.plotting`. End-to-end executed notebook: [`demo.ipynb`](demo.ipynb). Pretrained
+checkpoints are published in [`recommender-engine/weights/`](recommender-engine/weights/). Full run
+sheet and per-phase write-ups: [`recommender-engine/`](recommender-engine/), [`notes/`](notes/),
+[`status.md`](status.md), [`notes/phaseA.md`](notes/phaseA.md).
 
 ### What didn't work (kept on purpose)
 
@@ -173,6 +178,9 @@ write-ups: [`recommender-engine/`](recommender-engine/), [`notes/`](notes/),
 | seen-penalty γ | −0.01 [−0.66, +0.64] — redundant with the hard within-session dedup |
 | cold-item bonus β | −1.04 [−2.21, +0.13] — cold-start needs a real exploration story, not a bonus |
 | ε-greedy exploration | −2.34 [−3.00, −1.67] and repeat-exposure guardrail +21% worse |
+| recency-weighted diversity alone | +1.31 IWE but a guardrail degraded → rejected; only the joint `α 0.5 + recency 0.85` retune survived (+1.10 [+0.16, +2.04]) |
+| length-adaptive diversity alone | −5.70 [−6.70, −4.69] — stiffening the penalty with session length collapses IWE |
+| raw capacity (wide / wide_deep / cross) | ≈ neutral under BCE (−0.0012 to −0.0017); the ranking-aware objective, not more params, is what helps |
 | hour-trough / repeat ×2–×3 calibration | structural model-form limits, documented in [`notes/calibration.md`](notes/calibration.md) |
 
 **Honesty clause:** the simulator is hand-designed and calibrated to marginals only (7/12); absolute
