@@ -1,0 +1,265 @@
+{
+ "config": {
+  "seed": 42,
+  "bots": 10000,
+  "days": 7,
+  "calibrated": true,
+  "n_boot": 2000
+ },
+ "iwe": {
+  "random": {
+   "mean": 61.8574,
+   "std": 72.04681578834696
+  },
+  "popularity": {
+   "mean": 77.8663,
+   "std": 86.06651627845756
+  },
+  "personal_affinity": {
+   "mean": 93.6386,
+   "std": 129.89451870667986
+  },
+  "taste": {
+   "mean": 120.2583,
+   "std": 206.20589123764142
+  },
+  "taste_composer": {
+   "mean": 140.4366,
+   "std": 215.64332769747364
+  },
+  "evolved": {
+   "mean": 151.5254,
+   "std": 218.38070142491986
+  },
+  "oracle": {
+   "mean": 213.0995,
+   "std": 235.86958981553767
+  }
+ },
+ "oracle_gap_closed": {
+  "random": 0.0,
+  "popularity": 0.10584949561001862,
+  "personal_affinity": 0.21013461198965103,
+  "taste": 0.38614182162241867,
+  "taste_composer": 0.5195590381249665,
+  "evolved": 0.5928772478033563,
+  "oracle": 1.0
+ },
+ "times_sec": {
+  "random": 4.00704550743103,
+  "popularity": 3.8607826232910156,
+  "personal_affinity": 4.46126914024353,
+  "taste": 44.97389841079712,
+  "taste_composer": 52.273993492126465,
+  "evolved": 61.78358435630798,
+  "oracle": 12.0808265209198
+ },
+ "ladder": {
+  "popularity_gt_random": {
+   "mean_diff": 16.0089,
+   "lo": 15.3374975,
+   "hi": 16.691007499999998,
+   "n_users": 10000,
+   "n_boot": 2000,
+   "pass": true
+  },
+  "personal_affinity_gt_popularity": {
+   "mean_diff": 15.7723,
+   "lo": 14.1372425,
+   "hi": 17.4229475,
+   "n_users": 10000,
+   "n_boot": 2000,
+   "pass": true
+  },
+  "taste_gt_personal_affinity": {
+   "mean_diff": 26.6197,
+   "lo": 24.0403875,
+   "hi": 29.338982499999997,
+   "n_users": 10000,
+   "n_boot": 2000,
+   "pass": true
+  },
+  "oracle_gt_taste": {
+   "mean_diff": 92.8412,
+   "lo": 90.61837,
+   "hi": 95.33005999999999,
+   "n_users": 10000,
+   "n_boot": 2000,
+   "pass": true
+  }
+ },
+ "extra_pairs": {
+  "taste_composer_gt_taste": {
+   "mean_diff": 20.1783,
+   "lo": 18.869557500000003,
+   "hi": 21.52407,
+   "n_users": 10000,
+   "n_boot": 2000,
+   "pass": true
+  },
+  "evolved_gt_taste_composer": {
+   "mean_diff": 11.0888,
+   "lo": 9.857714999999999,
+   "hi": 12.3810425,
+   "n_users": 10000,
+   "n_boot": 2000,
+   "pass": true
+  }
+ },
+ "acceptance": {
+  "pass": true,
+  "order": [
+   "random",
+   "popularity",
+   "personal_affinity",
+   "taste",
+   "oracle"
+  ]
+ },
+ "parity": {
+  "status": "ok",
+  "pass": true,
+  "n_rows": 6007,
+  "tolerance": 0.15,
+  "checks": {
+   "u_pos_rate": {
+    "sim_mean": 0.5442082180949529,
+    "real_mean": 0.5144257464305779,
+    "rel_err_mean": 0.05789459775492427,
+    "pass": true
+   },
+   "u_mean_score": {
+    "sim_mean": 1.2841273742972041,
+    "real_mean": 1.2127946400805534,
+    "rel_err_mean": 0.05881682838894544,
+    "pass": true
+   },
+   "u_rate_click": {
+    "sim_mean": 0.5185704687270539,
+    "real_mean": 0.4884680840752008,
+    "rel_err_mean": 0.061626103389835346,
+    "pass": true
+   },
+   "u_rate_like": {
+    "sim_mean": 0.0237973818370206,
+    "real_mean": 0.021101553812302026,
+    "rel_err_mean": 0.1277549534360323,
+    "pass": true
+   },
+   "u_recency": {
+    "sim_mean": 0.029735753447752308,
+    "real_mean": 0.029735753611704805,
+    "rel_err_mean": 5.513648638358689e-09,
+    "pass": true
+   },
+   "uc_decay_share": {
+    "sim_mean": 0.08128656111824893,
+    "real_mean": 0.08013155973067812,
+    "rel_err_mean": 0.01441381387624011,
+    "pass": true
+   },
+   "uc_lift": {
+    "sim_mean": 1.0157320274608335,
+    "real_mean": 1.0923341266100504,
+    "rel_err_mean": 0.07012698521737469,
+    "pass": true
+   },
+   "uc_exposure_share": {
+    "sim_mean": 0.08045506058935585,
+    "real_mean": 0.07583573999718694,
+    "rel_err_mean": 0.06091218457603574,
+    "pass": true
+   },
+   "uc_score": {
+    "sim_mean": 1.267457534103417,
+    "real_mean": 1.2433928891729193,
+    "rel_err_mean": 0.019354015243327544,
+    "pass": true
+   },
+   "uc_recency": {
+    "sim_mean": 0.6987595976549735,
+    "real_mean": 0.6987595983024871,
+    "rel_err_mean": 9.26661472512593e-10,
+    "pass": true
+   },
+   "ui_prior_max_tier": {
+    "sim_mean": 0.0083236224404861,
+    "real_mean": 0.008656567338105544,
+    "rel_err_mean": 0.038461538461538464,
+    "pass": true
+   },
+   "ctx_hour_sin": {
+    "sim_mean": -0.28829596922562467,
+    "real_mean": -0.28829596561382986,
+    "rel_err_mean": 5.234936859841609e-09,
+    "pass": true
+   },
+   "ctx_hour_cos": {
+    "sim_mean": -0.13733123648648307,
+    "real_mean": -0.13733123562112512,
+    "rel_err_mean": 1.5763766626156234e-09,
+    "pass": true
+   }
+  },
+  "partial": {
+   "u_rate_follow": {
+    "sim_mean": 0.0024744535792143854,
+    "real_mean": 0.001840195724604697,
+    "rel_err_mean": 0.34466869264460276,
+    "pass": false,
+    "reason": "rare-event mean sensitive to the missing warmup"
+   },
+   "u_rate_forward": {
+    "sim_mean": 0.0028971288184876385,
+    "real_mean": 0.003399036842094704,
+    "rel_err_mean": 0.14766183684486273,
+    "pass": true,
+    "reason": "rare-event mean sensitive to the missing warmup"
+   },
+   "u_play_ratio": {
+    "sim_mean": 0.4755983972491397,
+    "real_mean": 0.5259454254349463,
+    "rel_err_mean": 0.09572671564577366,
+    "pass": true,
+    "reason": "artifacts store play_ratio clipped to watch in [0,1]"
+   },
+   "u_n_events": {
+    "sim_mean": 545.82237389712,
+    "real_mean": 1080.993840519394,
+    "rel_err_mean": 0.4950735578337207,
+    "pass": false,
+    "reason": "count over full history; pre-split warmup not stored"
+   },
+   "uc_repeat": {
+    "sim_mean": 0.08257033460962211,
+    "real_mean": 0.14782753454303313,
+    "rel_err_mean": 0.44144144144144143,
+    "pass": false,
+    "reason": "count over full history; pre-split warmup not stored"
+   },
+   "ui_prior_n": {
+    "sim_mean": 0.08257033460962211,
+    "real_mean": 0.14782753454303313,
+    "rel_err_mean": 0.44144144144144143,
+    "pass": false,
+    "reason": "count over full history; pre-split warmup not stored"
+   },
+   "cold_user": {
+    "sim_mean": 0.000499417346429166,
+    "real_mean": 0.0,
+    "rel_err_mean": 499.417346429166,
+    "pass": false,
+    "reason": "rare after full history; replay sees less history"
+   },
+   "cold_uc": {
+    "sim_mean": 0.04378225403695688,
+    "real_mean": 0.010987181621441652,
+    "rel_err_mean": 2.9848484848484844,
+    "pass": false,
+    "reason": "rare after full history; replay sees less history"
+   }
+  },
+  "note": "item-side i_* features excluded: a user sample cannot reproduce global item impression history"
+ },
+ "seconds_total": 183.9018771648407
+}

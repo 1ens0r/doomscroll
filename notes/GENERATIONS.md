@@ -82,34 +82,36 @@ TRAIN (seed 1), select on VAL (seed 2), TEST once (seed 3).
 
 | gen | best child IWE | fitness | violations | vs parent |
 |---|---|---|---|---|
-| 1 | 58.08 | 58.08 | 0 | improved |
-| 2 | 58.56 | 58.56 | 0 | improved |
-| 3 | 59.61 | 59.61 | 0 | improved |
-| 4 | 59.75 | 59.75 | 0 | improved |
-| 5 | 60.95 | 60.95 | 0 | improved |
-| 6 | 61.41 | 61.41 | 0 | improved |
-| 7 | 61.84 | 61.84 | 0 | improved |
-| 8 | 62.11 | 62.11 | 0 | improved |
+| 1 | 61.30 | 61.30 | 0 | improved |
+| 2 | 61.68 | 61.68 | 0 | improved |
+| 3 | 61.98 | 61.98 | 0 | improved |
+| 4 | 62.58 | 62.58 | 0 | improved |
+| 5 | 63.36 | 63.36 | 0 | improved |
+| 6 | 64.15 | 64.15 | 0 | improved |
+| 7 | 63.83 | 63.83 | 0 | held |
+| 8 | 63.63 | 63.63 | 0 | held |
 
-Selected knobs (VAL IWE 149.84):
+Selected knobs (VAL IWE 151.17):
 
 ```yaml
-gamma: 0.028722100640785786
-alpha: 0.9169852449368447
-eta: 1.161274812431303
+gamma: 0.9595767045442181
+alpha: 0.8587593592249384
+eta: 1.195048496763621
 beta: 0.0
 epsilon: 0.0
-d: 0.9223301532041229
-m: 9
-w_click: 1.6430108355362572
-w_watch: 1.5932507705720227
-w_like: 4.73996061197423
-w_forward: 6.876871413420349
-w_follow: 4.6170007417838965
-n_popular: 48
-n_affinity: 65
-n_new: 23
-n_random: 19
+d: 0.7474226538584331
+m: 5
+r: 0.9778385565979922
+g: 0.08894238366091084
+w_click: 1.5051608444066351
+w_watch: 4.0
+w_like: 4.219280705615512
+w_forward: 0.5
+w_follow: 3.611114763901732
+n_popular: 59
+n_affinity: 60
+n_new: 29
+n_random: 28
 ```
 
-TEST (seed 3) IWE/bot: evolved 150.03 vs `taste_composer` 136.50 (delta +13.53, 95% CI [+12.10, +14.92]).
+TEST (seed 3) IWE/bot: evolved 150.16 vs `taste_composer` 140.22 (delta +9.95, 95% CI [+8.71, +11.25]).

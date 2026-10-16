@@ -1,0 +1,161 @@
+{
+ "seed": 42,
+ "bots": 10000,
+ "days": 7,
+ "n_boot": 2000,
+ "guardrail_tol": 0.1,
+ "composer_neutral": {
+  "gamma": 0.0,
+  "alpha": 0.0,
+  "eta": 0.0,
+  "beta": 0.0,
+  "epsilon": 0.0,
+  "decay": 0.8,
+  "window_m": 5.0,
+  "alpha_recency": 1.0,
+  "alpha_growth": 0.0
+ },
+ "composer_accepted": {
+  "gamma": 0.0,
+  "alpha": 0.5,
+  "eta": 0.0,
+  "beta": 0.0,
+  "epsilon": 0.0,
+  "decay": 0.8,
+  "window_m": 5.0,
+  "alpha_recency": 0.85,
+  "alpha_growth": 0.0
+ },
+ "iwe_neutral": 120.2583,
+ "iwe_final": 140.544,
+ "gain_vs_neutral": 20.285700000000006,
+ "seconds_total": 442.5209836959839,
+ "generations": [
+  {
+   "generation": 1,
+   "component": "seen-penalty",
+   "knob": "gamma",
+   "value": 2.0,
+   "iwe": 120.4272,
+   "delta_vs_accepted": 0.1689,
+   "ci": [
+    -0.5743,
+    0.9351125
+   ],
+   "guardrails_ok": true,
+   "kept": false,
+   "verdict": "REJECT (no IWE gain)"
+  },
+  {
+   "generation": 2,
+   "component": "diversity",
+   "knob": "alpha",
+   "value": 0.4,
+   "iwe": 139.4476,
+   "delta_vs_accepted": 19.1893,
+   "ci": [
+    17.726155000000002,
+    20.665655
+   ],
+   "guardrails_ok": true,
+   "kept": true,
+   "verdict": "KEEP"
+  },
+  {
+   "generation": 3,
+   "component": "session adaptation",
+   "knob": "eta",
+   "value": 0.5,
+   "iwe": 140.4366,
+   "delta_vs_accepted": 0.989,
+   "ci": [
+    -0.242585,
+    2.1804275
+   ],
+   "guardrails_ok": false,
+   "kept": false,
+   "verdict": "REJECT (no IWE gain)"
+  },
+  {
+   "generation": 4,
+   "component": "cold bonus",
+   "knob": "beta",
+   "value": 0.3,
+   "iwe": 137.6437,
+   "delta_vs_accepted": -1.8039,
+   "ci": [
+    -2.6659300000000004,
+    -0.9471400000000003
+   ],
+   "guardrails_ok": false,
+   "kept": false,
+   "verdict": "REJECT (no IWE gain)"
+  },
+  {
+   "generation": 5,
+   "component": "epsilon exploration",
+   "knob": "epsilon",
+   "value": 0.05,
+   "iwe": 137.5817,
+   "delta_vs_accepted": -1.8659,
+   "ci": [
+    -2.5308125,
+    -1.2725650000000002
+   ],
+   "guardrails_ok": true,
+   "kept": false,
+   "verdict": "REJECT (no IWE gain)"
+  },
+  {
+   "generation": 6,
+   "component": "recency-weighted diversity",
+   "knob": "alpha_recency",
+   "value": 0.85,
+   "iwe": 140.7539,
+   "delta_vs_accepted": 1.3063,
+   "ci": [
+    0.231795,
+    2.3607324999999997
+   ],
+   "guardrails_ok": false,
+   "kept": false,
+   "verdict": "REJECT (guardrail)"
+  },
+  {
+   "generation": 7,
+   "component": "length-adaptive diversity",
+   "knob": "alpha_growth",
+   "value": 0.2,
+   "iwe": 133.7449,
+   "delta_vs_accepted": -5.7027,
+   "ci": [
+    -6.6990175,
+    -4.686645
+   ],
+   "guardrails_ok": true,
+   "kept": false,
+   "verdict": "REJECT (no IWE gain)"
+  },
+  {
+   "generation": 8,
+   "component": "recency-boosted diversity (joint retune)",
+   "knob": [
+    "alpha",
+    "alpha_recency"
+   ],
+   "value": {
+    "alpha": 0.5,
+    "alpha_recency": 0.85
+   },
+   "iwe": 140.544,
+   "delta_vs_accepted": 1.0964,
+   "ci": [
+    0.156675,
+    2.039865
+   ],
+   "guardrails_ok": true,
+   "kept": true,
+   "verdict": "KEEP"
+  }
+ ]
+}

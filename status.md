@@ -5,7 +5,8 @@ calibrated behaviour simulator → policy ladder → staged **Compose** re-ranke
 Every policy claim is backed by a paired per-bot bootstrap CI, a guardrail panel, and a reproducible
 negative result. This file tracks what is **built** vs **left**.
 
-_Last updated: Phase 5 complete. All of Phases 0–5 committed; nothing left on the plan._
+_Last updated: Phase 6 + Phase A (revival plan). Phases 0–5 committed; Phase 6 audit and the Phase-A
+improvements (bigger network, ranking-aware loss, composer refresh, executed `demo.ipynb`) added._
 
 ## The whole project in ten lines
 
@@ -29,22 +30,25 @@ _Last updated: Phase 5 complete. All of Phases 0–5 committed; nothing left on 
 | 2 | World + swarm + calibration + Learn | ✅ DONE (`1e7660f`, `e2bf316`) | Ladder PASS; parity 13/13; calib 7/12 |
 | 3 | Composer generations | ✅ DONE (`e2bf316`) | `taste_composer` 138.27 (gap-closed 0.51) |
 | 4 | Evolution loop | ✅ DONE (`2fe4565`) | `evolved` 149.54 (gap-closed 0.58) |
-| 5 | Ship polish (figures, README, blog notes) | ✅ DONE (this commit) | 5 headline figures; README Mini-Feed; BLOG_NOTES.md |
+| 5 | Ship polish (figures, README, blog notes) | ✅ DONE (`2fe4565`) | 5 headline figures; README Mini-Feed; BLOG_NOTES.md |
+| 6 | Baseline audit + reproduction | ✅ DONE | `notes/phase6.md`; fresh run == archived numbers |
+| A | Bigger net + ranking loss + composer refresh + `demo.ipynb` | ✅ DONE | `notes/phaseA.md`; val +0.0045 CI>0; evolved 151.53; executed notebook |
 
-**Current best ladder (10,000 bots × 7 days, seed 42, calibrated, 2,000 bootstraps):**
+**Current best ladder (10,000 bots × 7 days, seed 42, calibrated, 2,000 bootstraps; Phase-A ranker):**
 
 | policy | IWE / bot | gap-closed vs oracle |
 |---|---|---|
 | random | 61.86 | 0.00 |
 | popularity | 77.87 | 0.11 |
 | personal_affinity | 93.64 | 0.21 |
-| taste (learned ranker) | 120.28 | 0.39 |
-| taste_composer | 138.27 | 0.51 |
-| **evolved (Phase 4)** | **149.54** | **0.58** |
+| taste (learned ranker) | 120.26 | 0.39 |
+| taste_composer | 140.44 | 0.52 |
+| **evolved (Phase A)** | **151.53** | **0.59** |
 | oracle (adaptive ceiling) | 213.10 | 1.00 |
 
-All adjacent rungs CI-separated; `taste_composer > taste` +17.99 and `evolved > taste_composer`
-+11.27 (both CIs exclude 0). Raw: `recommender-engine/artifacts/sim_results.json`.
+(Phase-2/4 numbers with the original 32k ranker were taste 120.28, composer 138.27, evolved 149.54.)
+All adjacent rungs CI-separated; `taste_composer > taste` +20.18 and `evolved > taste_composer`
++11.09 (both CIs exclude 0). Raw: `recommender-engine/artifacts/sim_results.json`.
 
 ---
 
@@ -146,6 +150,33 @@ root `README.md` **"Mini-Feed"** section, `notes/BLOG_NOTES.md`, the ten-line su
 
 **Left:** nothing.
 
+## Phase 6 — Baseline audit + reproduction  ✅
+
+**Built:** `feed/fingerprint.py` (split/config sha256 fingerprint), `notes/phase6.md`.
+
+- Audited the shipped model for weaknesses; reproduced the Phase-1 baseline **exactly** on a fresh
+  run (n_params 32,357, best epoch 5, val 0.496055, test 0.518649, identical per-epoch history).
+- Archived the original artifact as `offline_results_phase1.json` before overwriting.
+
+**Left:** nothing.
+
+## Phase A — Bigger network, better objective, better composer  ✅
+
+**Built:** config-driven variants in `feed/model.py` (+`feed/losses.py` L0–L7, hybrid ranking loss in
+`feed/train.py`), improved composer components in `feed/composer.py`, drivers `run_capacity.py` /
+`run_losses.py` / `run_improve.py`, executed `demo.ipynb`.
+
+- **A1/A2.** `wide_hybrid` (122,773 params, masked BCE + LambdaRank surrogate) beats the new-code
+  baseline on val **+0.0045 [+0.0028, +0.0062]** and test **+0.0049**, and clears the archived
+  Phase-1 numbers. `notes/results/{improve,capacity,loss_ablation}.json`.
+- **A3.** Composer additions (recency-weighted + length-adaptive diversity, now in the evolution
+  spec). Greedy growth `120.26 → 140.54`; evolution **TEST 150.16 vs 140.22** (+9.95
+  [+8.71, +11.25]); ladder `taste 120.26 → taste_composer 140.44 → evolved 151.53`. Reports
+  `notes/phaseA.md`, `notes/results/{composer,evolve,sim}.json`.
+- **A4.** Dataset fingerprint, paired user-bootstrap CIs, one-touch test, parity 13/13, 35 green tests.
+
+**Left:** nothing.
+
 ---
 
 ## Repository layout
@@ -176,10 +207,18 @@ recommender-engine/
   feed/evolve.py       p4  (1+lambda)-ES mechanics
   run_evolve.py        p4  evolution entry
   feed/plotting.py     p5  the five headline figures
-  tests/               p1-p4  21 fast tests
+  feed/losses.py       pA  L0-L7 objectives + calibration diagnostics
+  feed/experiment.py   pA  shared train+eval for ablations
+  feed/fingerprint.py  p6  dataset/config fingerprint
+  run_capacity.py      pA  network-capacity study
+  run_losses.py        pA  loss ablation + diagnostics figure
+  run_improve.py       pA  headline: baseline vs improved, val+test once
+  build_demo.py        pB  generates demo.ipynb
+  tests/               p1-pB  35 fast tests
   config/{policy,swarm,policy_evolved}.yaml
   ASSUMPTIONS.md       every modelling decision (A0-A21)
-notes/              phase1-4 write-ups, calibration, GENERATIONS, BLOG_NOTES, figures/
+notes/                phase1-6 + phaseA write-ups, results/, figures/, GENERATIONS, BLOG_NOTES
+demo.ipynb            executed end-to-end research notebook (repo root)
 ```
 
 ## Run / reproduce
@@ -187,12 +226,15 @@ notes/              phase1-4 write-ups, calibration, GENERATIONS, BLOG_NOTES, fi
 ```bash
 cd recommender-engine
 P=~/miniconda3/envs/picograd/bin/python
-$P -m pytest tests/ -q          # 21 tests
+$P -m pytest tests/ -q          # 35 tests
 $P run_offline.py --fast        # offline TasteNet smoke
+$P run_improve.py --test baseline_masked,wide_hybrid   # A1/A2 headline (~700 s)
+$P run_learn.py --variant wide --loss hybrid           # sim-native ranker
 $P run_swarm.py                 # policy ladder incl. evolved (~130 s)
-$P run_generations.py           # composer generations (~209 s)
-$P run_evolve.py                # (1+lambda)-ES (~335 s) -> config/policy_evolved.yaml
+$P run_generations.py           # composer generations (~440 s)
+$P run_evolve.py                # (1+lambda)-ES (~610 s) -> config/policy_evolved.yaml
 $P -m feed.plotting             # the five headline figures -> ../notes/figures/
+$P build_demo.py                # generate demo.ipynb, then nbconvert --execute it
 ```
 
 ## Known limitations / honest notes
