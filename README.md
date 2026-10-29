@@ -8,8 +8,9 @@ features, trains a small cpu model to predict engagement, and drops that model i
 user simulator to test whole feed policies end to end. no gpu. no cloud. a laptop and a lot of
 patience.
 
-**if you read one thing, read [`demo.ipynb`](demo.ipynb).** it walks the whole thing in plain
-english, runs top to bottom, and shows every graph inline. this readme is the director's commentary.
+**if you read one thing, read [`Doomscroll_EDA_Report.ipynb`](Doomscroll_EDA_Report.ipynb)**
+([PDF](Doomscroll_EDA_Report.pdf)). it walks the whole thing in plain english, runs top to bottom,
+and shows every graph inline. this readme is the director's commentary.
 
 ---
 
@@ -348,7 +349,7 @@ what's on screen, what's next (**with its topic**), and how the user reacts.
 ![sim position](eda/figures/13_sim_position.png)
 
 clicks, likes, watch fractions, tier mix, topic mix, and how engagement shifts across a session — all
-in [`demo.ipynb`](demo.ipynb) §10. **this whole section is simulated.** it's a behavioural illustration,
+in [`Doomscroll_EDA_Report.ipynb`](Doomscroll_EDA_Report.ipynb) Part B. **this whole section is simulated.** it's a behavioural illustration,
 not a causal claim about real humans.
 
 ---
@@ -380,8 +381,6 @@ $P run_swarm.py                                     # the policy ladder (~2 min)
 $P run_generations.py                               # composer generations
 $P run_evolve.py                                    # (1+λ)-es over 18 knobs
 $P -m feed.plotting                                 # policy figures -> ../eda/figures/
-$P build_demo.py                                    # regenerate demo.ipynb
-python -m nbconvert --to notebook --execute ../demo.ipynb --output ../demo.ipynb
 ```
 
 pretrained checkpoints are published in
@@ -393,7 +392,9 @@ pretrained checkpoints are published in
 
 ```text
 doomscroll/
-  demo.ipynb                      ← the end-to-end, executed notebook (start here)
+  Doomscroll_EDA_Report.ipynb     ← the end-to-end, executed report (start here)
+  Doomscroll_EDA_Report.pdf       ← static export of the report
+  Doomscroll_EDA_Report.html      ← embedded-image HTML export
   eda/
     01_load_and_clean.ipynb       ← raw → canonical event table
     02_preprocess_and_features.ipynb ← tiers, temporal splits, 43 features
